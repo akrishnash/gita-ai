@@ -56,3 +56,4 @@ The app uses curated, real Bhagavad Gita verses from `GitaMap.kt`. All verses, t
 
 This project contains translations and reflections of the Bhagavad Gita. The philosophical content is in the public domain.
 
+

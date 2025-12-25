@@ -4,7 +4,7 @@ import com.gita.app.data.GitaMap
 import com.gita.app.data.ReflectionAngle
 import com.gita.app.data.VerseEntry
 import com.gita.app.logic.LocalStorage
-import kotlinx.coroutines.runBlocking
+import kotlin.math.absoluteValue
 
 /**
  * Handles verse selection with rotation and non-repetition logic.
@@ -24,8 +24,9 @@ class SelectionEngine(private val storage: LocalStorage) {
             return null
         }
         
-        val seenVerseIds = storage.getSeenVerseIds()
-        val lastVerseId = storage.getLastVerseId()
+        // Use suspend functions to avoid blocking
+        val seenVerseIds = storage.getSeenVerseIdsSuspend()
+        val lastVerseId = storage.getLastVerseIdSuspend()
         
         // Filter out the last verse to avoid immediate repetition
         val availableVerses = if (lastVerseId != null) {
@@ -50,9 +51,14 @@ class SelectionEngine(private val storage: LocalStorage) {
             versesToChooseFrom[index]
         }
         
-        // Mark as seen and update last verse
-        storage.addSeenVerseId(selectedVerse.id)
-        storage.setLastVerseId(selectedVerse.id)
+        // Mark as seen and update last verse (these are suspend functions)
+        try {
+            storage.addSeenVerseId(selectedVerse.id)
+            storage.setLastVerseId(selectedVerse.id)
+        } catch (e: Exception) {
+            // If storage fails, still return the verse (non-critical)
+            e.printStackTrace()
+        }
         
         return selectedVerse
     }
@@ -62,7 +68,7 @@ class SelectionEngine(private val storage: LocalStorage) {
      * Rotates through available angles to provide variety.
      */
     suspend fun getNextReflectionAngle(verseId: String): ReflectionAngle {
-        val lastAngle = storage.getLastReflectionAngle(verseId)
+        val lastAngle = storage.getLastReflectionAngleSuspend(verseId)
         val allAngles = ReflectionAngle.values().toList()
         
         val currentIndex = if (lastAngle != null) {
@@ -76,17 +82,25 @@ class SelectionEngine(private val storage: LocalStorage) {
         val nextAngle = allAngles[nextIndex]
         
         // Store for next time
-        storage.setLastReflectionAngle(verseId, nextAngle)
+        try {
+            storage.setLastReflectionAngle(verseId, nextAngle)
+        } catch (e: Exception) {
+            // If storage fails, still return the angle (non-critical)
+            e.printStackTrace()
+        }
         
         return nextAngle
     }
     
     /**
-     * Gets a random anchor line from the verse's anchor lines.
+     * Gets an anchor line from the verse's anchor lines.
+     * Rotates through anchor lines deterministically based on verse ID.
      */
-    fun getAnchorLine(verse: VerseEntry): String {
+    suspend fun getAnchorLine(verse: VerseEntry): String {
         return if (verse.anchorLines.isNotEmpty()) {
-            verse.anchorLines.random()
+            // Deterministic selection based on verse ID hash
+            val index = verse.id.hashCode().absoluteValue % verse.anchorLines.size
+            verse.anchorLines[index]
         } else {
             ""
         }

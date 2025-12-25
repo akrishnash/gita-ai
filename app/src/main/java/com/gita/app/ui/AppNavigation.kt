@@ -5,21 +5,17 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import com.gita.app.viewmodel.AppState
 import com.gita.app.viewmodel.MainViewModel
-import com.gita.app.ui.HomeScreen
-import com.gita.app.ui.PauseScreen
-import com.gita.app.ui.ResponseScreen
-import com.gita.app.ui.HistoryScreen
-import com.gita.app.ui.SettingsScreen
 
 @Composable
 fun AppNavigation(viewModel: MainViewModel) {
     val appState by viewModel.appState.collectAsState()
+    val aiApiKey by viewModel.aiApiKey.collectAsState()
     
     when (val state = appState) {
         is AppState.Home -> {
             HomeScreen(
                 onInputSubmitted = { input ->
-                    viewModel.onUserInputSubmitted(input)
+                    viewModel.submitProblem(input)
                 },
                 onNavigateToHistory = {
                     viewModel.navigateToHistory()
@@ -32,8 +28,8 @@ fun AppNavigation(viewModel: MainViewModel) {
         is AppState.Pause -> {
             PauseScreen(
                 userInput = state.userInput,
-                onGenerateResponse = {
-                    viewModel.generateResponse(state.userInput)
+                onProcessProblem = {
+                    viewModel.processProblem()
                 },
                 onBack = {
                     viewModel.navigateToHome()
@@ -45,10 +41,8 @@ fun AppNavigation(viewModel: MainViewModel) {
                 verse = state.verse,
                 reflection = state.reflection,
                 anchorLine = state.anchorLine,
-                currentAngle = state.currentAngle,
-                userInput = state.userInput,
                 onAnotherPerspective = {
-                    viewModel.getAnotherPerspective(state.verse, state.currentAngle)
+                    viewModel.getAnotherPerspective()
                 },
                 onBack = {
                     viewModel.navigateToHome()
@@ -57,7 +51,7 @@ fun AppNavigation(viewModel: MainViewModel) {
         }
         is AppState.History -> {
             HistoryScreen(
-                historyEntries = viewModel.historyEntries.collectAsState().value,
+                historyEntries = emptyList(), // TODO: Load from ViewModel
                 onBack = {
                     viewModel.navigateToHome()
                 }
@@ -65,7 +59,7 @@ fun AppNavigation(viewModel: MainViewModel) {
         }
         is AppState.Settings -> {
             SettingsScreen(
-                aiApiKey = viewModel.aiApiKey.collectAsState().value,
+                aiApiKey = aiApiKey,
                 onSaveApiKey = { key ->
                     viewModel.saveAiApiKey(key)
                 },
@@ -76,4 +70,3 @@ fun AppNavigation(viewModel: MainViewModel) {
         }
     }
 }
-

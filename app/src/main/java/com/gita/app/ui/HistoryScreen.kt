@@ -8,10 +8,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.material3.ExperimentalMaterial3Api
 import com.gita.app.logic.HistoryEntry
 import java.text.SimpleDateFormat
 import java.util.*
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HistoryScreen(
     historyEntries: List<HistoryEntry>,
@@ -92,4 +94,5 @@ fun HistoryItem(entry: HistoryEntry) {
         }
     }
 }
+
 

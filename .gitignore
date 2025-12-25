@@ -92,3 +92,10 @@ lint/tmp/
 # Windows
 Thumbs.db
 
+# Build scripts (optional - uncomment if you don't want to commit these)
+# build-and-install.ps1
+# build-and-install.bat
+# quick-install.ps1
+# rebuild-install.ps1
+
+
