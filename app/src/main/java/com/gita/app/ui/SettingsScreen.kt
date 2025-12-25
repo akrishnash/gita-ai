@@ -36,12 +36,12 @@ fun SettingsScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Text(
-                text = "AI API Key (Optional)",
+                text = "OpenAI API Key",
                 style = MaterialTheme.typography.titleMedium
             )
             
             Text(
-                text = "Enter an API key to enable AI-enhanced reflections. Leave empty to use offline mode only.",
+                text = "This app uses OpenAI embeddings to match your query to a verse and a related story. The key is stored only on your device.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -82,7 +82,7 @@ fun SettingsScreen(
             Divider(modifier = Modifier.padding(vertical = 16.dp))
             
             Text(
-                text = "Note: AI features are not yet implemented. This setting prepares the app for future AI integration.",
+                text = "If you clear the key, the app falls back to the offline deterministic mode.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
