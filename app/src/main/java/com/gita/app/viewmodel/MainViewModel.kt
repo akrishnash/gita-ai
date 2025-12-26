@@ -5,9 +5,11 @@ import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.gita.app.BuildConfig
+import com.gita.app.ai.ReflectionGenerator
 import com.gita.app.data.ReflectionAngle
 import com.gita.app.data.VerseEntry
 import com.gita.app.kotlinmodel.KotlinModelRepository
+import com.gita.app.kotlinmodel.OpenAIUsageTracker
 import com.gita.app.logic.DetectedTheme
 import com.gita.app.logic.HistoryEntry
 import com.gita.app.logic.LocalStorage
@@ -63,6 +65,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _aiApiKey = MutableStateFlow<String?>(null)
     val aiApiKey: StateFlow<String?> = _aiApiKey.asStateFlow()
     
+    private val _usageStats = MutableStateFlow(OpenAIUsageTracker.getUsageSummary())
+    val usageStats: StateFlow<OpenAIUsageTracker.UsageSummary> = _usageStats.asStateFlow()
+    
     // Store current problem and theme for alternate perspectives
     private var currentProblem: String = ""
     private var currentThemeId: String = ""
@@ -70,6 +75,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private var currentVerse: VerseEntry? = null
     
     init {
+        // Test log to verify logging is working
+        Log.i("MainViewModel", "═══════════════════════════════════════════════════════")
+        Log.i("MainViewModel", "Gita App - Token Usage Tracking Enabled")
+        Log.i("MainViewModel", "Look for 'OpenAIEmbeddingsClient' and 'OpenAIUsageTracker' in Logcat")
+        Log.i("MainViewModel", "═══════════════════════════════════════════════════════")
+        println("Gita App - Token Usage Tracking Enabled. Check Logcat for OpenAI usage logs.")
+        
         // Load API key in background
         viewModelScope.launch {
             try {
@@ -103,13 +115,24 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 Log.d("MainViewModel", "Processing problem: $currentProblem")
 
-                // NEW: Kotlin-only ML matching using OpenAI embeddings + bundled model/embeddings.
+                // Get API key once for the entire function
                 val apiKey = _aiApiKey.value
-                if (!apiKey.isNullOrBlank()) {
+
+                // NEW: Kotlin-only ML matching using OpenAI embeddings + bundled model/embeddings.
+                if (!apiKey.isNullOrBlank() && currentProblem.isNotBlank()) {
                     try {
                         val match = kotlinModelRepo.match(currentProblem, apiKey)
                         if (match != null) {
+                            Log.d("MainViewModel", "ML model match successful: verse=${match.verse.id}, score=${match.score}")
                             val v = match.verse
+
+                            // Generate complete translation (not word-by-word)
+                            val reflectionGenerator = ReflectionGenerator(apiKey)
+                            val completeTranslation = reflectionGenerator.generateCompleteTranslation(
+                                sanskrit = v.sanskrit,
+                                transliteration = v.transliteration,
+                                wordByWordTranslation = v.translation
+                            ) ?: v.translation // Fallback to original if AI fails
 
                             val explanation = v.explanation?.trim().orEmpty()
                             val detailed = v.detailed_explanation?.trim().orEmpty()
@@ -119,17 +142,26 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                                 else -> "A moment of reflection."
                             }
 
+                            // Generate personalized reflection that aligns with user's query
+                            val personalizedReflection = reflectionGenerator.generatePersonalizedReflection(
+                                userQuery = currentProblem,
+                                verseSanskrit = v.sanskrit,
+                                verseTranslation = completeTranslation,
+                                verseContext = v.context,
+                                baseExplanation = reflectionBase
+                            ) ?: reflectionBase // Fallback to base if AI fails
+
                             val reflections = mapOf(
-                                ReflectionAngle.PSYCHOLOGICAL to reflectionBase,
-                                ReflectionAngle.ACTION to (if (detailed.isNotBlank()) detailed else reflectionBase),
-                                ReflectionAngle.DETACHMENT to (if (detailed.isNotBlank()) detailed else reflectionBase),
-                                ReflectionAngle.COMPASSION to reflectionBase,
-                                ReflectionAngle.SELFTRUST to reflectionBase
+                                ReflectionAngle.PSYCHOLOGICAL to personalizedReflection,
+                                ReflectionAngle.ACTION to personalizedReflection,
+                                ReflectionAngle.DETACHMENT to personalizedReflection,
+                                ReflectionAngle.COMPASSION to personalizedReflection,
+                                ReflectionAngle.SELFTRUST to personalizedReflection
                             )
 
                             val anchorLine = when {
-                                match.story?.moral_lesson?.isNotBlank() == true -> match.story.moral_lesson!!.trim()
-                                explanation.isNotBlank() -> explanation
+                                match.story?.moral_lesson?.isNotBlank() == true -> match.story.moral_lesson.trim()
+                                personalizedReflection.isNotBlank() -> personalizedReflection.take(100) + if (personalizedReflection.length > 100) "..." else ""
                                 else -> "A quiet perspective."
                             }
 
@@ -139,7 +171,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                                 verse = v.verse,
                                 sanskrit = v.sanskrit,
                                 transliteration = v.transliteration,
-                                translation = v.translation,
+                                translation = completeTranslation, // Use complete translation
                                 context = v.context,
                                 reflections = reflections,
                                 anchorLines = listOf(anchorLine)
@@ -171,6 +203,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                                     keyThemes = it.key_themes ?: emptyList()
                                 )
                             }
+
+                            // Log session usage stats
+                            OpenAIUsageTracker.logSessionStats()
+                            // Update UI stats
+                            _usageStats.value = OpenAIUsageTracker.getUsageSummary()
 
                             // Use the same Response screen; angle rotation still works (even if texts repeat)
                             _appState.value = AppState.Response(
@@ -223,10 +260,52 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     ReflectionAngle.PSYCHOLOGICAL // Safe default
                 }
                 
-                // Step 4: Get reflection text
-                val reflection = verse.reflections[reflectionAngle] 
+                // Step 4: Get base reflection text
+                val baseReflection = verse.reflections[reflectionAngle] 
                     ?: verse.reflections.values.firstOrNull() 
                     ?: "Reflection not available for this verse."
+                
+                // Step 4b: Generate personalized reflection if API key is available
+                val reflection = if (!apiKey.isNullOrBlank()) {
+                    try {
+                        val reflectionGenerator = ReflectionGenerator(apiKey)
+                        val personalized = reflectionGenerator.generatePersonalizedReflection(
+                            userQuery = currentProblem,
+                            verseSanskrit = verse.sanskrit,
+                            verseTranslation = verse.translation,
+                            verseContext = verse.context,
+                            baseExplanation = baseReflection
+                        )
+                        personalized ?: baseReflection
+                    } catch (e: Exception) {
+                        Log.e("MainViewModel", "Failed to generate personalized reflection", e)
+                        baseReflection
+                    }
+                } else {
+                    baseReflection
+                }
+                
+                // Step 4c: Generate complete translation if API key is available
+                val completeTranslation = if (!apiKey.isNullOrBlank()) {
+                    try {
+                        val reflectionGenerator = ReflectionGenerator(apiKey)
+                        val complete = reflectionGenerator.generateCompleteTranslation(
+                            sanskrit = verse.sanskrit,
+                            transliteration = verse.transliteration,
+                            wordByWordTranslation = verse.translation
+                        )
+                        complete ?: verse.translation
+                    } catch (e: Exception) {
+                        Log.e("MainViewModel", "Failed to generate complete translation", e)
+                        verse.translation
+                    }
+                } else {
+                    verse.translation
+                }
+                
+                // Update verse with complete translation
+                val updatedVerse = verse.copy(translation = completeTranslation)
+                currentVerse = updatedVerse
                 
                 // Step 5: Select ONE anchor line
                 val anchorLine = try {
@@ -242,6 +321,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 
                 Log.d("MainViewModel", "Response generated successfully")
+                
+                // Update usage stats (in case any API calls were made)
+                _usageStats.value = OpenAIUsageTracker.getUsageSummary()
                 
                 // Step 6: Save to history
                 try {
@@ -259,7 +341,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 
                 // Step 7: Update UI state
                 _appState.value = AppState.Response(
-                    verse = verse,
+                    verse = updatedVerse,
                     reflection = reflection,
                     anchorLine = anchorLine,
                     currentAngle = reflectionAngle,
@@ -330,6 +412,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
     
     fun navigateToSettings() {
+        // Refresh usage stats when opening settings
+        _usageStats.value = OpenAIUsageTracker.getUsageSummary()
         _appState.value = AppState.Settings
     }
     

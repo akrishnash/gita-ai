@@ -1,8 +1,6 @@
 package com.gita.app.kotlinmodel
 
-/**
- * Data models for `app/src/main/assets/KotlinModel/*.json`.
- */
+// Data models for KotlinModel JSON files
 
 data class VersesRoot(val verses: List<ExpandedVerse> = emptyList())
 
@@ -31,5 +29,3 @@ data class ExpandedStory(
     val key_themes: List<String>? = null,
     val moral_lesson: String? = null
 )
-
-

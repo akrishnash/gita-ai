@@ -10,6 +10,7 @@ import com.gita.app.viewmodel.MainViewModel
 fun AppNavigation(viewModel: MainViewModel) {
     val appState by viewModel.appState.collectAsState()
     val aiApiKey by viewModel.aiApiKey.collectAsState()
+    val usageStats by viewModel.usageStats.collectAsState()
     
     when (val state = appState) {
         is AppState.Home -> {
@@ -61,6 +62,7 @@ fun AppNavigation(viewModel: MainViewModel) {
         is AppState.Settings -> {
             SettingsScreen(
                 aiApiKey = aiApiKey,
+                usageStats = usageStats,
                 onSaveApiKey = { key ->
                     viewModel.saveAiApiKey(key)
                 },

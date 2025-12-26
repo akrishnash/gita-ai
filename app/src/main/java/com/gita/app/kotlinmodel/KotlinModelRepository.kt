@@ -42,35 +42,63 @@ class KotlinModelRepository(private val context: Context) {
         if (initialized) return
         initMutex.withLock {
             if (initialized) return
-            withContext(Dispatchers.IO) {
-                verseModel = TinyBiEncoderModel(context, VERSE_MODEL_BIN)
+            try {
+                withContext(Dispatchers.IO) {
+                    Log.d(TAG, "Initializing KotlinModel assets...")
+                    verseModel = TinyBiEncoderModel(context, VERSE_MODEL_BIN)
 
-                // Load verse data + stories (for display)
-                verseById = loadVerses()
-                storyByKey = loadStories()
+                    // Load verse data + stories (for display)
+                    verseById = loadVerses()
+                    storyByKey = loadStories()
 
-                // Load verse embeddings and pre-encode keys once
-                val verseEmbeddings = loadVerseEmbeddings()
-                val ids = ArrayList<String>(verseEmbeddings.size)
-                val encoded = ArrayList<FloatArray>(verseEmbeddings.size)
-                for ((id, emb) in verseEmbeddings) {
-                    ids.add(id)
-                    encoded.add(verseModel.encodeKey(emb))
+                    // Load verse embeddings and pre-encode keys once
+                    val verseEmbeddings = loadVerseEmbeddings()
+                    if (verseEmbeddings.isEmpty()) {
+                        Log.w(TAG, "Warning: No verse embeddings loaded!")
+                    }
+                    val ids = ArrayList<String>(verseEmbeddings.size)
+                    val encoded = ArrayList<FloatArray>(verseEmbeddings.size)
+                    for ((id, emb) in verseEmbeddings) {
+                        ids.add(id)
+                        encoded.add(verseModel.encodeKey(emb))
+                    }
+                    verseKeyIds = ids
+                    verseKeyEncoded = encoded
+
+                    Log.d(TAG, "Initialized successfully. verses=${verseKeyIds.size}, stories=${storyByKey.size}")
+                    initialized = true
                 }
-                verseKeyIds = ids
-                verseKeyEncoded = encoded
-
-                Log.d(TAG, "Initialized. verses=${verseKeyIds.size}, stories=${storyByKey.size}")
-                initialized = true
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to initialize KotlinModel repository", e)
+                throw e
             }
         }
     }
 
     suspend fun match(query: String, openAiApiKey: String): MatchResult? {
-        ensureInitialized()
+        if (query.isBlank()) {
+            Log.w(TAG, "Empty query provided to match()")
+            return null
+        }
+        
+        try {
+            ensureInitialized()
+        } catch (e: Exception) {
+            Log.e(TAG, "Model initialization failed during match", e)
+            return null
+        }
+
+        if (verseKeyEncoded.isEmpty()) {
+            Log.e(TAG, "No verse embeddings available for matching")
+            return null
+        }
 
         val client = OpenAIEmbeddingsClient(openAiApiKey)
-        val embedding = client.embed(query) ?: return null
+        val embedding = client.embed(query) ?: run {
+            Log.w(TAG, "Failed to get embedding for query: ${query.take(50)}...")
+            return null
+        }
+        
         if (embedding.size != TinyBiEncoderModel.INPUT_DIM) {
             Log.e(TAG, "Embedding dim mismatch: ${embedding.size} (expected ${TinyBiEncoderModel.INPUT_DIM})")
             return null
@@ -87,7 +115,10 @@ class KotlinModelRepository(private val context: Context) {
                 bestIdx = i
             }
         }
-        if (bestIdx < 0) return null
+        if (bestIdx < 0) {
+            Log.w(TAG, "No valid match found (all scores were negative infinity)")
+            return null
+        }
 
         val verseId = verseKeyIds[bestIdx]
         val verse = verseById[verseId] ?: run {
@@ -96,6 +127,8 @@ class KotlinModelRepository(private val context: Context) {
         }
 
         val story = verse.mythology_key?.let { storyByKey[it] }
+        
+        Log.d(TAG, "Match found: verse=${verseId}, score=$bestScore, hasStory=${story != null}")
 
         return MatchResult(
             verse = verse,
@@ -105,16 +138,34 @@ class KotlinModelRepository(private val context: Context) {
     }
 
     private fun loadVerses(): Map<String, ExpandedVerse> {
-        context.assets.open(VERSES_JSON).use { input ->
-            val root = gson.fromJson(InputStreamReader(input, Charsets.UTF_8), VersesRoot::class.java)
-            return root.verses.associateBy { it.id }
+        return try {
+            context.assets.open(VERSES_JSON).use { input ->
+                val root = gson.fromJson(InputStreamReader(input, Charsets.UTF_8), VersesRoot::class.java)
+                val verses = root.verses.associateBy { it.id }
+                if (verses.isEmpty()) {
+                    Log.w(TAG, "Warning: No verses loaded from $VERSES_JSON")
+                }
+                verses
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to load verses from $VERSES_JSON", e)
+            emptyMap()
         }
     }
 
     private fun loadStories(): Map<String, ExpandedStory> {
-        context.assets.open(STORIES_JSON).use { input ->
-            val root = gson.fromJson(InputStreamReader(input, Charsets.UTF_8), StoriesRoot::class.java)
-            return root.stories.associateBy { it.key }
+        return try {
+            context.assets.open(STORIES_JSON).use { input ->
+                val root = gson.fromJson(InputStreamReader(input, Charsets.UTF_8), StoriesRoot::class.java)
+                val stories = root.stories.associateBy { it.key }
+                if (stories.isEmpty()) {
+                    Log.w(TAG, "Warning: No stories loaded from $STORIES_JSON")
+                }
+                stories
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to load stories from $STORIES_JSON", e)
+            emptyMap()
         }
     }
 
@@ -125,32 +176,39 @@ class KotlinModelRepository(private val context: Context) {
     private fun loadVerseEmbeddings(): Map<String, FloatArray> {
         val result = LinkedHashMap<String, FloatArray>(1024)
 
-        context.assets.open(VERSE_EMB_JSON).use { raw ->
-            val reader = JsonReader(InputStreamReader(raw, Charsets.UTF_8))
-            reader.beginObject()
-            while (reader.hasNext()) {
-                when (reader.nextName()) {
-                    "embeddings" -> {
-                        reader.beginObject()
-                        while (reader.hasNext()) {
-                            val id = reader.nextName()
-                            val vec = readFloatArray(reader)
-                            if (vec.size == TinyBiEncoderModel.INPUT_DIM) {
-                                result[id] = vec
-                            } else {
-                                Log.w(TAG, "Skipping $id embedding dim=${vec.size}")
-                                // still consume
+        return try {
+            context.assets.open(VERSE_EMB_JSON).use { raw ->
+                val reader = JsonReader(InputStreamReader(raw, Charsets.UTF_8))
+                reader.beginObject()
+                while (reader.hasNext()) {
+                    when (reader.nextName()) {
+                        "embeddings" -> {
+                            reader.beginObject()
+                            while (reader.hasNext()) {
+                                val id = reader.nextName()
+                                val vec = readFloatArray(reader)
+                                if (vec.size == TinyBiEncoderModel.INPUT_DIM) {
+                                    result[id] = vec
+                                } else {
+                                    Log.w(TAG, "Skipping $id embedding dim=${vec.size} (expected ${TinyBiEncoderModel.INPUT_DIM})")
+                                    // still consume
+                                }
                             }
+                            reader.endObject()
                         }
-                        reader.endObject()
+                        else -> reader.skipValue()
                     }
-                    else -> reader.skipValue()
                 }
+                reader.endObject()
             }
-            reader.endObject()
+            if (result.isEmpty()) {
+                Log.w(TAG, "Warning: No valid verse embeddings loaded from $VERSE_EMB_JSON")
+            }
+            result
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to load verse embeddings from $VERSE_EMB_JSON", e)
+            emptyMap()
         }
-
-        return result
     }
 
     private fun readFloatArray(reader: JsonReader): FloatArray {
