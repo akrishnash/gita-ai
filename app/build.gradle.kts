@@ -21,8 +21,18 @@ android {
     }
 
     buildTypes {
+        debug {
+            // Dev-only: allow injecting the OpenAI key via environment variable or Gradle property.
+            // Prefer NOT to ship a key in release builds.
+            val openAiKey = (project.findProperty("OPENAI_API_KEY") as String?)
+                ?: System.getenv("OPENAI_API_KEY")
+                ?: ""
+            buildConfigField("String", "OPENAI_API_KEY", "\"${openAiKey.replace("\\", "\\\\").replace("\"", "\\\"")}\"")
+        }
         release {
             isMinifyEnabled = true
+            // Release: do not embed secrets in the APK.
+            buildConfigField("String", "OPENAI_API_KEY", "\"\"")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -41,6 +51,7 @@ android {
     
     buildFeatures {
         compose = true
+        buildConfig = true
     }
     
     composeOptions {

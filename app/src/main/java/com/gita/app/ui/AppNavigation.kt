@@ -41,6 +41,7 @@ fun AppNavigation(viewModel: MainViewModel) {
                 verse = state.verse,
                 reflection = state.reflection,
                 anchorLine = state.anchorLine,
+                story = state.story,
                 onAnotherPerspective = {
                     viewModel.getAnotherPerspective()
                 },

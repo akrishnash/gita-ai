@@ -4,9 +4,10 @@ import android.app.Application
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.gita.app.ai.IntentInterpreter
+import com.gita.app.BuildConfig
 import com.gita.app.data.ReflectionAngle
 import com.gita.app.data.VerseEntry
+import com.gita.app.kotlinmodel.KotlinModelRepository
 import com.gita.app.logic.DetectedTheme
 import com.gita.app.logic.HistoryEntry
 import com.gita.app.logic.LocalStorage
@@ -27,11 +28,19 @@ sealed class AppState {
         val currentAngle: ReflectionAngle,
         val userInput: String,
         val themeId: String,
-        val subthemeId: String
+        val subthemeId: String,
+        val story: StoryCard? = null
     ) : AppState()
     object History : AppState()
     object Settings : AppState()
 }
+
+data class StoryCard(
+    val title: String,
+    val text: String,
+    val moralLesson: String? = null,
+    val keyThemes: List<String> = emptyList()
+)
 
 data class ResponseState(
     val verse: VerseEntry,
@@ -46,6 +55,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     
     private val storage = LocalStorage(application.applicationContext)
     private val selectionEngine = SelectionEngine(storage)
+    private val kotlinModelRepo = KotlinModelRepository(application.applicationContext)
     
     private val _appState = MutableStateFlow<AppState>(AppState.Home)
     val appState: StateFlow<AppState> = _appState.asStateFlow()
@@ -63,7 +73,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         // Load API key in background
         viewModelScope.launch {
             try {
-                _aiApiKey.value = storage.getAiApiKey()
+                val saved = storage.getAiApiKey()
+                val buildConfigKey = BuildConfig.OPENAI_API_KEY.takeIf { it.isNotBlank() }
+                _aiApiKey.value = saved ?: buildConfigKey
+                // Warm up KotlinModel assets (models + embeddings + verse/story data)
+                kotlinModelRepo.ensureInitialized()
             } catch (e: Exception) {
                 Log.e("MainViewModel", "Failed to load API key", e)
             }
@@ -88,37 +102,96 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             try {
                 Log.d("MainViewModel", "Processing problem: $currentProblem")
-                
-                // Step 1: Try AI intent extraction first
-                val detectedTheme = try {
-                    val apiKey = _aiApiKey.value
-                    if (!apiKey.isNullOrBlank()) {
-                        val intentInterpreter = IntentInterpreter(apiKey)
-                        val aiIntent = intentInterpreter.extractIntent(currentProblem)
-                        
-                        if (aiIntent != null) {
-                            Log.d("MainViewModel", "AI intent extracted: ${aiIntent.primaryTheme}/${aiIntent.subtheme}, confidence=${aiIntent.confidence}")
-                            // Convert AI intent to DetectedTheme
-                            DetectedTheme(
-                                themeId = aiIntent.primaryTheme,
-                                subthemeId = aiIntent.subtheme,
-                                confidence = aiIntent.confidence
+
+                // NEW: Kotlin-only ML matching using OpenAI embeddings + bundled model/embeddings.
+                val apiKey = _aiApiKey.value
+                if (!apiKey.isNullOrBlank()) {
+                    try {
+                        val match = kotlinModelRepo.match(currentProblem, apiKey)
+                        if (match != null) {
+                            val v = match.verse
+
+                            val explanation = v.explanation?.trim().orEmpty()
+                            val detailed = v.detailed_explanation?.trim().orEmpty()
+                            val reflectionBase = when {
+                                explanation.isNotBlank() -> explanation
+                                detailed.isNotBlank() -> detailed
+                                else -> "A moment of reflection."
+                            }
+
+                            val reflections = mapOf(
+                                ReflectionAngle.PSYCHOLOGICAL to reflectionBase,
+                                ReflectionAngle.ACTION to (if (detailed.isNotBlank()) detailed else reflectionBase),
+                                ReflectionAngle.DETACHMENT to (if (detailed.isNotBlank()) detailed else reflectionBase),
+                                ReflectionAngle.COMPASSION to reflectionBase,
+                                ReflectionAngle.SELFTRUST to reflectionBase
                             )
-                        } else {
-                            Log.d("MainViewModel", "AI intent extraction failed or low confidence, falling back to keyword matching")
-                            // Fallback to keyword matching
-                            ThemeDetector.detectTheme(currentProblem) ?: ThemeDetector.getFallbackTheme()
+
+                            val anchorLine = when {
+                                match.story?.moral_lesson?.isNotBlank() == true -> match.story.moral_lesson!!.trim()
+                                explanation.isNotBlank() -> explanation
+                                else -> "A quiet perspective."
+                            }
+
+                            val verseEntry = VerseEntry(
+                                id = v.id,
+                                chapter = v.chapter,
+                                verse = v.verse,
+                                sanskrit = v.sanskrit,
+                                transliteration = v.transliteration,
+                                translation = v.translation,
+                                context = v.context,
+                                reflections = reflections,
+                                anchorLines = listOf(anchorLine)
+                            )
+
+                            currentThemeId = "semantic"
+                            currentSubthemeId = "semantic"
+                            currentVerse = verseEntry
+
+                            // Save to history (best-effort)
+                            try {
+                                storage.addHistoryEntry(
+                                    HistoryEntry(
+                                        timestamp = System.currentTimeMillis(),
+                                        userInput = currentProblem,
+                                        verseId = verseEntry.id,
+                                        anchorLine = anchorLine
+                                    )
+                                )
+                            } catch (e: Exception) {
+                                Log.e("MainViewModel", "Failed to save history (ML path)", e)
+                            }
+
+                            val storyCard = match.story?.let {
+                                StoryCard(
+                                    title = it.title,
+                                    text = it.text,
+                                    moralLesson = it.moral_lesson,
+                                    keyThemes = it.key_themes ?: emptyList()
+                                )
+                            }
+
+                            // Use the same Response screen; angle rotation still works (even if texts repeat)
+                            _appState.value = AppState.Response(
+                                verse = verseEntry,
+                                reflection = reflections[ReflectionAngle.PSYCHOLOGICAL] ?: reflectionBase,
+                                anchorLine = anchorLine,
+                                currentAngle = ReflectionAngle.PSYCHOLOGICAL,
+                                userInput = currentProblem,
+                                themeId = currentThemeId,
+                                subthemeId = currentSubthemeId,
+                                story = storyCard
+                            )
+                            return@launch
                         }
-                    } else {
-                        Log.d("MainViewModel", "No API key, using keyword matching")
-                        // No API key, use keyword matching
-                        ThemeDetector.detectTheme(currentProblem) ?: ThemeDetector.getFallbackTheme()
+                    } catch (e: Exception) {
+                        Log.e("MainViewModel", "KotlinModel match failed, falling back to offline selection", e)
                     }
-                } catch (e: Exception) {
-                    Log.e("MainViewModel", "Intent extraction failed, falling back", e)
-                    // Fallback to keyword matching on any error
-                    ThemeDetector.detectTheme(currentProblem) ?: ThemeDetector.getFallbackTheme()
                 }
+                
+                // OFFLINE FALLBACK: keyword matching + deterministic verse rotation
+                val detectedTheme = ThemeDetector.detectTheme(currentProblem) ?: ThemeDetector.getFallbackTheme()
                 
                 currentThemeId = detectedTheme.themeId
                 currentSubthemeId = detectedTheme.subthemeId
@@ -192,7 +265,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     currentAngle = reflectionAngle,
                     userInput = currentProblem,
                     themeId = currentThemeId,
-                    subthemeId = currentSubthemeId
+                    subthemeId = currentSubthemeId,
+                    story = null
                 )
                 
             } catch (e: Exception) {
