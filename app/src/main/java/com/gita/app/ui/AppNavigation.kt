@@ -48,7 +48,8 @@ fun AppNavigation(viewModel: MainViewModel) {
                 },
                 onBack = {
                     viewModel.navigateToHome()
-                }
+                },
+                debugInfo = state.debugInfo
             )
         }
         is AppState.History -> {

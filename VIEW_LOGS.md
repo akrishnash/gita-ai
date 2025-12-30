@@ -137,3 +137,4 @@ adb logcat | grep -i "OpenAIEmbeddingsClient\|OpenAIUsageTracker"
 
 Or in Android Studio Logcat, search for: `OpenAI`
 
+

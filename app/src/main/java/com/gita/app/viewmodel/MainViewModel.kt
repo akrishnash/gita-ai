@@ -31,7 +31,8 @@ sealed class AppState {
         val userInput: String,
         val themeId: String,
         val subthemeId: String,
-        val story: StoryCard? = null
+        val story: StoryCard? = null,
+        val debugInfo: com.gita.app.kotlinmodel.MatchDebugInfo? = null
     ) : AppState()
     object History : AppState()
     object Settings : AppState()
@@ -121,9 +122,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 // NEW: Kotlin-only ML matching using OpenAI embeddings + bundled model/embeddings.
                 if (!apiKey.isNullOrBlank() && currentProblem.isNotBlank()) {
                     try {
+                        Log.i("MainViewModel", "═══════════════════════════════════════════════════════")
+                        Log.i("MainViewModel", "ATTEMPTING ML MATCHING")
+                        Log.i("MainViewModel", "Query: $currentProblem")
+                        Log.i("MainViewModel", "API Key present: ${!apiKey.isNullOrBlank()}")
                         val match = kotlinModelRepo.match(currentProblem, apiKey)
                         if (match != null) {
-                            Log.d("MainViewModel", "ML model match successful: verse=${match.verse.id}, score=${match.score}")
+                            Log.i("MainViewModel", "✅ ML model match successful: verse=${match.verse.id}, score=${match.score}")
+                            Log.i("MainViewModel", "═══════════════════════════════════════════════════════")
                             val v = match.verse
 
                             // Generate complete translation (not word-by-word)
@@ -221,10 +227,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                                 story = storyCard
                             )
                             return@launch
+                        } else {
+                            Log.w("MainViewModel", "ML matching returned null, falling back to offline")
                         }
                     } catch (e: Exception) {
-                        Log.e("MainViewModel", "KotlinModel match failed, falling back to offline selection", e)
+                        Log.e("MainViewModel", "❌ KotlinModel match failed, falling back to offline selection", e)
+                        e.printStackTrace()
                     }
+                } else {
+                    Log.w("MainViewModel", "Skipping ML matching - API key: ${if (apiKey.isNullOrBlank()) "MISSING" else "present"}, Problem: ${if (currentProblem.isBlank()) "empty" else "present"}")
                 }
                 
                 // OFFLINE FALLBACK: keyword matching + deterministic verse rotation

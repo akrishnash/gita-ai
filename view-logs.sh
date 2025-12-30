@@ -47,3 +47,4 @@ echo ""
 # Monitor logs with filtering for OpenAI usage
 adb logcat -s OpenAIEmbeddingsClient:I OpenAIUsageTracker:I MainViewModel:I *:S
 
+

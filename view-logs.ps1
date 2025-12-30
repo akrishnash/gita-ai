@@ -49,3 +49,4 @@ Write-Host ""
 # Monitor logs with filtering for OpenAI usage
 & $adbPath logcat -s OpenAIEmbeddingsClient:I OpenAIUsageTracker:I MainViewModel:I *:S
 
+

@@ -23,7 +23,8 @@ fun ResponseScreen(
     anchorLine: String,
     story: StoryCard? = null,
     onAnotherPerspective: () -> Unit,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    debugInfo: com.gita.app.kotlinmodel.MatchDebugInfo? = null
 ) {
     Scaffold(
         topBar = {
@@ -54,6 +55,113 @@ fun ResponseScreen(
                 .padding(24.dp)
                 .verticalScroll(rememberScrollState())
         ) {
+            // Debug Info Section
+            debugInfo?.let { debug ->
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 16.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+                    )
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text(
+                            text = "🔍 Matching Process",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
+                        Text(
+                            text = "Input: \"${debug.userInput}\"",
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(bottom = 4.dp)
+                        )
+                        Text(
+                            text = "Detected Emotion: ${debug.detectedEmotion ?: "None"}",
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(bottom = 4.dp)
+                        )
+                        debug.emotionScore?.let { score ->
+                            Text(
+                                text = "Emotion Score: ${"%.3f".format(score)}",
+                                style = MaterialTheme.typography.bodySmall,
+                                modifier = Modifier.padding(bottom = 4.dp)
+                            )
+                        }
+                        Text(
+                            text = "Verses in Category: ${debug.emotionVersesCount}",
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(bottom = 4.dp)
+                        )
+                        Text(
+                            text = "Matched Verse: ${debug.matchedVerseId}",
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(bottom = 4.dp)
+                        )
+                        Text(
+                            text = "Method: ${debug.matchingMethod}",
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
+                        debug.allEmotionScores?.let { scores ->
+                            Text(
+                                text = "All Emotion Scores:",
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.padding(bottom = 4.dp)
+                            )
+                            scores.toList().sortedByDescending { it.second }.take(5).forEach { (emotion, score) ->
+                                Text(
+                                    text = "  • $emotion: ${"%.3f".format(score)}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    modifier = Modifier.padding(start = 8.dp, bottom = 2.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // Detected Emotion Display (Prominent)
+            debugInfo?.detectedEmotion?.let { emotion ->
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 16.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer
+                    )
+                ) {
+                    Column(
+                        modifier = Modifier.padding(20.dp),
+                        horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "Detected Emotion",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
+                        Text(
+                            text = emotion,
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            textAlign = TextAlign.Center
+                        )
+                        debugInfo.emotionScore?.let { score ->
+                            Text(
+                                text = "Confidence: ${"%.1f".format(score * 100)}%",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f),
+                                modifier = Modifier.padding(top = 4.dp)
+                            )
+                        }
+                    }
+                }
+            }
+            
             // Verse reference
             Text(
                 text = "Chapter ${verse.chapter}, Verse ${verse.verse}",
