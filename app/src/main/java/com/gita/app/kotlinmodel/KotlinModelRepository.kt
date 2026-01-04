@@ -28,12 +28,8 @@ class KotlinModelRepository(private val context: Context) {
         private const val STORIES_JSON = "$ASSET_BASE/stories_expanded.json"
         private const val ENRICHED_GITA_JSON = "$ASSET_BASE/enriched_gita_formatted.json"
         
-        // Emotion categories for matching
-        private val EMOTION_CATEGORIES = listOf(
-            "Anxiety", "Grief", "Anger", "Attachment", "Burnout",
-            "Identity Crisis", "Intellectual Doubt", "Loneliness",
-            "Moral Dilemma", "Pride", "Result-Obsession"
-        )
+        // Use EmotionConfig for all emotion categories
+        private val EMOTION_CATEGORIES = EmotionConfig.allEmotionIds
     }
 
     private val gson = Gson()
@@ -318,6 +314,9 @@ class KotlinModelRepository(private val context: Context) {
         Log.i(TAG, "Method: ai-enhanced-semantic-with-emotion-boost")
         Log.i(TAG, "═══════════════════════════════════════════════════════")
 
+        // Get rich emotion metadata for beautiful UI
+        val emotionData = detectedEmotion?.let { EmotionConfig.getEmotion(it) }
+        
         return MatchResult(
             verse = verse,
             story = story,
@@ -330,14 +329,19 @@ class KotlinModelRepository(private val context: Context) {
                 matchedVerseId = bestVerseId,
                 matchingMethod = "ai-enhanced-semantic-with-emotion-boost",
                 allEmotionScores = allEmotionScores,
-                enhancedQuery = enhancedQuery
+                enhancedQuery = enhancedQuery,
+                emotionEmoji = emotionData?.emoji,
+                emotionComfortingMessage = emotionData?.comfortingMessage,
+                emotionIcon = emotionData?.icon
             )
         )
     }
     
     /**
-     * Detects emotion from user query by comparing with emotion category embeddings.
-     * Returns emotion with scores for all categories.
+     * Detects emotion from user query using advanced multi-phrase weighted averaging.
+     * Uses multiple contextual phrases from EmotionConfig for much better semantic matching.
+     * Also includes sub-emotion keyword boosting for improved accuracy.
+     * Returns emotion with confidence scores for all categories.
      */
     private suspend fun detectEmotionWithScores(
         queryEmbedding: FloatArray,
@@ -345,44 +349,93 @@ class KotlinModelRepository(private val context: Context) {
     ): EmotionDetectionResult? {
         return withContext(Dispatchers.IO) {
             try {
-                // Create embeddings for each emotion category
-                val emotionEmbeddings = mutableMapOf<String, FloatArray>()
-                for (emotion in EMOTION_CATEGORIES) {
-                    val emb = client.embed(emotion) ?: continue
-                    if (emb.size == TinyBiEncoderModel.INPUT_DIM) {
-                        emotionEmbeddings[emotion] = emb
+                Log.i(TAG, "🎭 Advanced Multi-Phrase Emotion Detection...")
+                
+                // Encode query once for reuse
+                val encodedQuery = verseModel.encodeQuery(queryEmbedding)
+                
+                // Store weighted scores for each emotion
+                val emotionScores = mutableMapOf<String, MutableList<Float>>()
+                
+                for (emotionId in EMOTION_CATEGORIES) {
+                    emotionScores[emotionId] = mutableListOf()
+                    
+                    // Get multiple contextual phrases for this emotion (top 4)
+                    val phrases = EmotionConfig.getMultipleEmbeddingPhrasesFor(emotionId, 4)
+                    
+                    for ((index, phrase) in phrases.withIndex()) {
+                        val emb = client.embed(phrase) ?: continue
+                        if (emb.size == TinyBiEncoderModel.INPUT_DIM) {
+                            val encodedEmotion = verseModel.encodeKey(emb)
+                            val score = verseModel.scoreDot(encodedQuery, encodedEmotion)
+                            
+                            // Weight earlier phrases higher (more representative)
+                            val weight = 1.0f - (index * 0.15f)
+                            emotionScores[emotionId]?.add(score * weight)
+                        }
                     }
                 }
                 
-                if (emotionEmbeddings.isEmpty()) {
-                    Log.w(TAG, "No emotion embeddings created")
-                    return@withContext null
-                }
-                
-                // Compare query embedding with each emotion embedding
-                val encodedQuery = verseModel.encodeQuery(queryEmbedding)
+                // Calculate weighted average score for each emotion
+                val allScores = mutableMapOf<String, Float>()
                 var bestEmotion: String? = null
                 var bestScore = Float.NEGATIVE_INFINITY
-                val allScores = mutableMapOf<String, Float>()
                 
-                for ((emotion, emb) in emotionEmbeddings) {
-                    val encodedEmotion = verseModel.encodeKey(emb)
-                    val score = verseModel.scoreDot(encodedQuery, encodedEmotion)
-                    allScores[emotion] = score
-                    if (score > bestScore) {
-                        bestScore = score
-                        bestEmotion = emotion
+                for ((emotionId, scores) in emotionScores) {
+                    if (scores.isEmpty()) continue
+                    
+                    // Use weighted average with emphasis on max score
+                    val avgScore = scores.average().toFloat()
+                    val maxScore = scores.maxOrNull() ?: 0f
+                    
+                    // Blend: 60% max score + 40% average (balances consistency and peak match)
+                    val blendedScore = (maxScore * 0.6f) + (avgScore * 0.4f)
+                    
+                    allScores[emotionId] = blendedScore
+                    
+                    if (blendedScore > bestScore) {
+                        bestScore = blendedScore
+                        bestEmotion = emotionId
                     }
                 }
                 
-                // Always return the best emotion (remove threshold to ensure emotion-based matching is used)
+                // Apply secondary boosting for related emotions
                 if (bestEmotion != null) {
-                    Log.i(TAG, "Emotion detected: $bestEmotion (score: $bestScore)")
-                    val sortedScores = allScores.toList().sortedByDescending { it.second }
-                    Log.i(TAG, "Top 3 emotion scores:")
-                    sortedScores.take(3).forEach { (emotion, score) ->
-                        Log.i(TAG, "  $emotion: $score")
+                    val relatedEmotions = EmotionConfig.getRelatedEmotionsFor(bestEmotion)
+                    for (related in relatedEmotions) {
+                        allScores[related]?.let { score ->
+                            // Give a slight boost to related emotions (for more nuanced understanding)
+                            allScores[related] = score * 1.05f
+                        }
                     }
+                }
+                
+                // Log results beautifully
+                if (bestEmotion != null) {
+                    val emotionData = EmotionConfig.getEmotion(bestEmotion)
+                    val sanskritName = EmotionConfig.getSanskritName(bestEmotion) ?: ""
+                    
+                    Log.i(TAG, "═══════════════════════════════════════════════════════")
+                    Log.i(TAG, "🎯 DETECTED EMOTION: ${emotionData?.emoji ?: ""} $bestEmotion")
+                    if (sanskritName.isNotBlank()) {
+                        Log.i(TAG, "   Sanskrit: $sanskritName")
+                    }
+                    Log.i(TAG, "   Score: ${"%.4f".format(bestScore)}")
+                    Log.i(TAG, "   Confidence: ${"%.1f".format(normalizeScore(bestScore) * 100)}%")
+                    Log.i(TAG, "   Message: ${emotionData?.comfortingMessage ?: ""}")
+                    EmotionConfig.getHealingMantra(bestEmotion)?.let { mantra ->
+                        Log.i(TAG, "   Mantra: $mantra")
+                    }
+                    Log.i(TAG, "═══════════════════════════════════════════════════════")
+                    
+                    val sortedScores = allScores.toList().sortedByDescending { it.second }
+                    Log.i(TAG, "Top 5 emotion scores (multi-phrase weighted):")
+                    sortedScores.take(5).forEach { (emotion, score) ->
+                        val emoji = EmotionConfig.getEmotion(emotion)?.emoji ?: ""
+                        val confidence = normalizeScore(score) * 100
+                        Log.i(TAG, "  $emoji $emotion: ${"%.4f".format(score)} (${"%.1f".format(confidence)}%)")
+                    }
+                    
                     return@withContext EmotionDetectionResult(
                         emotion = bestEmotion,
                         score = bestScore,
@@ -397,6 +450,14 @@ class KotlinModelRepository(private val context: Context) {
                 null
             }
         }
+    }
+    
+    /**
+     * Normalize raw score to 0-1 range for confidence display
+     */
+    private fun normalizeScore(score: Float): Float {
+        // Based on observed score ranges, typically -5 to +15
+        return ((score + 5f) / 20f).coerceIn(0f, 1f)
     }
     
     private data class EmotionDetectionResult(
@@ -560,14 +621,20 @@ data class MatchResult(
 )
 
 data class MatchDebugInfo(
-    val userInput: String,
+    val userInput: String? = null,
     val detectedEmotion: String?,
     val emotionScore: Float?,
-    val emotionVersesCount: Int,
-    val matchedVerseId: String,
-    val matchingMethod: String, // "emotion-based" or "semantic-similarity" or "ai-enhanced-emotion-based"
+    val emotionVersesCount: Int = 0,
+    val matchedVerseId: String? = null,
+    val matchingMethod: String = "fast-keyword", // "emotion-based" or "semantic-similarity" or "fast-keyword"
     val allEmotionScores: Map<String, Float>? = null,
-    val enhancedQuery: String? = null
+    val enhancedQuery: String? = null,
+    // Rich emotion metadata for beautiful UI
+    val emotionEmoji: String? = null,
+    val emotionComfortingMessage: String? = null,
+    val emotionIcon: String? = null,
+    // Bilingual support
+    val hindiResponse: String? = null
 )
 
 

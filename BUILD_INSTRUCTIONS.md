@@ -82,3 +82,5 @@ The APK will be at: `app/build/outputs/apk/debug/app-debug.apk`
 - Check that Java 17 is set as project SDK
 - Clean project: Build → Clean Project, then rebuild
 
+
+

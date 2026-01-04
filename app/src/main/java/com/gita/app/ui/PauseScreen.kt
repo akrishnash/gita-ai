@@ -1,75 +1,103 @@
 package com.gita.app.ui
 
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.material3.ExperimentalMaterial3Api
 import kotlinx.coroutines.delay
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PauseScreen(
     userInput: String,
     onProcessProblem: () -> Unit,
     onBack: () -> Unit
 ) {
-    // Trigger processing after delay
+    // Process IMMEDIATELY - no delay
     LaunchedEffect(userInput) {
-        delay(1800) // ~1500-2000ms delay
+        delay(100) // Just enough for smooth transition
         onProcessProblem()
     }
     
-    // Peacock-themed gradient background (same as HomeScreen)
-    val peacockGradient = Brush.verticalGradient(
-        colors = listOf(
-            Color(0xFFE8F5E9), // Light green
-            Color(0xFFF1F8E9), // Very light green
-            Color(0xFFE3F2FD), // Light blue
-            Color(0xFFF5F5F5)  // Soft white
-        )
+    // Minimal dark theme
+    val bgColor = Color(0xFF0A0A0A)
+    val accent = Color(0xFFD4AF37)
+    
+    // Subtle breathing animation
+    val infiniteTransition = rememberInfiniteTransition(label = "breathing")
+    val breatheScale by infiniteTransition.animateFloat(
+        initialValue = 0.98f,
+        targetValue = 1.02f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(2000, easing = EaseInOutSine),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "breatheScale"
     )
     
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Pause") },
-                navigationIcon = {
-                    TextButton(onClick = onBack) {
-                        Text("Back")
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color(0xFFE8F5E9).copy(alpha = 0.9f)
-                )
-            )
-        }
-    ) { padding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(peacockGradient)
-                .padding(padding),
-            contentAlignment = Alignment.Center
+    val alpha by infiniteTransition.animateFloat(
+        initialValue = 0.4f,
+        targetValue = 0.8f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(2000, easing = EaseInOutSine),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "alpha"
+    )
+    
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(bgColor),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
         ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.padding(24.dp)
+            // Simple breathing Om
+            Text(
+                text = "ॐ",
+                fontSize = 80.sp,
+                fontWeight = FontWeight.Thin,
+                fontFamily = FontFamily.Serif,
+                color = accent.copy(alpha = alpha),
+                modifier = Modifier.scale(breatheScale)
+            )
+            
+            Spacer(modifier = Modifier.height(32.dp))
+            
+            // Three dots loading
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text(
-                    text = "Let's sit with this for a moment.",
-                    style = MaterialTheme.typography.headlineSmall,
-                    textAlign = TextAlign.Center,
-                    color = Color(0xFF424242),
-                    lineHeight = 28.sp
-                )
+                repeat(3) { index ->
+                    val dotAlpha by infiniteTransition.animateFloat(
+                        initialValue = 0.3f,
+                        targetValue = 1f,
+                        animationSpec = infiniteRepeatable(
+                            animation = tween(600, easing = EaseInOutSine),
+                            repeatMode = RepeatMode.Reverse,
+                            initialStartOffset = StartOffset(index * 200)
+                        ),
+                        label = "dot$index"
+                    )
+                    Text(
+                        text = "·",
+                        fontSize = 24.sp,
+                        color = accent.copy(alpha = dotAlpha)
+                    )
+                }
             }
         }
     }

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "288776001576",
+    "project_id": "gita-ai-3cefa",
+    "storage_bucket": "gita-ai-3cefa.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:288776001576:android:e7542cdb19c141b953fd1d",
+        "android_client_info": {
+          "package_name": "com.gita.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAlHQnGekdyHqwqeYDGBPCtRy-Up49HX2o"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

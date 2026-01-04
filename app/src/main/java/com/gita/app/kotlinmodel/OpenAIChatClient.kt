@@ -54,22 +54,27 @@ class OpenAIChatClient(
 
 The Bhagavad Gita covers themes like:
 - Anxiety and fear (especially before major decisions or conflicts)
-- Grief and loss
-- Anger and conflict
-- Attachment and detachment
-- Burnout and exhaustion
-- Identity crisis and self-doubt
-- Intellectual and philosophical doubts
-- Loneliness and isolation
-- Moral dilemmas and ethical conflicts
-- Pride and ego
-- Result-obsession and attachment to outcomes
-- Duty and responsibility (dharma)
+- Grief and loss (mourning, heartbreak, separation)
+- Anger and conflict (rage, frustration, resentment)
+- Attachment and detachment (clinging, possessiveness, desire)
+- Burnout and exhaustion (fatigue, depletion, overwhelm)
+- Identity crisis and self-doubt (purpose, meaning, authentic self)
+- Intellectual and philosophical doubts (skepticism, questioning faith)
+- Loneliness and isolation (abandonment, disconnection)
+- Moral dilemmas and ethical conflicts (dharma, duty vs desire)
+- Pride and ego (arrogance, vanity, self-importance)
+- Result-obsession and attachment to outcomes (perfectionism, fear of failure)
+- Fear (terror, dread, apprehension, paralysis)
+- Jealousy (envy, comparison, resentment of others' success)
+- Guilt (shame, remorse, self-blame, regret)
+- Hopelessness (despair, nihilism, futility, giving up)
+- Confusion (bewilderment, mental fog, decision paralysis)
+- Impatience (restlessness, urgency, frustration with timing)
 - Self-realization and spiritual growth
-- Detachment from results
-- Equanimity in success and failure
+- Detachment from results (nishkama karma)
+- Equanimity in success and failure (sthitaprajna)
 - The nature of the self and consciousness
-- The eternal nature of the soul
+- The eternal nature of the soul (atman)
 - Dealing with change and impermanence
 
 Your analysis should:
@@ -88,9 +93,10 @@ Respond in JSON format:
   "enhanced_query": "a refined, detailed version that captures the spiritual/emotional essence in Gita-relevant terms"
 }
 
-Emotions must be from this exact list (match exactly): Anxiety, Grief, Anger, Attachment, Burnout, Identity Crisis, Intellectual Doubt, Loneliness, Moral Dilemma, Pride, Result-Obsession
+Emotions must be from this EXACT list (match exactly, case-sensitive): 
+Anxiety, Grief, Anger, Attachment, Burnout, Identity Crisis, Intellectual Doubt, Loneliness, Moral Dilemma, Pride, Result-Obsession, Fear, Jealousy, Guilt, Hopelessness, Confusion, Impatience
 
-The enhanced_query is crucial - it should be 2-3 sentences that rephrase the user's situation in a way that would semantically match relevant Gita verses. Include emotional context, the situation, and what kind of guidance is needed."""
+The enhanced_query is crucial - it should be 2-3 sentences that rephrase the user's situation in a way that would semantically match relevant Gita verses. Include emotional context, the situation, and what kind of guidance is needed. Use Sanskrit/spiritual terms where appropriate (e.g., karma, dharma, moksha, atman)."""
 
             val userPrompt = """User Query: "$query"
 

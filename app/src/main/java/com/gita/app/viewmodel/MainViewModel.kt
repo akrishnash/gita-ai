@@ -21,6 +21,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 sealed class AppState {
+    object LanguageSelection : AppState()
+    object Login : AppState()
     object Home : AppState()
     data class Pause(val userInput: String) : AppState()
     data class Response(
@@ -59,8 +61,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val storage = LocalStorage(application.applicationContext)
     private val selectionEngine = SelectionEngine(storage)
     private val kotlinModelRepo = KotlinModelRepository(application.applicationContext)
+    private val fastMatcher = com.gita.app.kotlinmodel.FastMatcher(application.applicationContext)
     
-    private val _appState = MutableStateFlow<AppState>(AppState.Home)
+    private val _appState = MutableStateFlow<AppState>(AppState.LanguageSelection)
+    
+    // Language preference
+    private val _selectedLanguage = MutableStateFlow<String>("en")
+    val selectedLanguage: StateFlow<String> = _selectedLanguage.asStateFlow()
+    
+    private val _isDarkMode = MutableStateFlow<Boolean>(true)
+    val isDarkMode: StateFlow<Boolean> = _isDarkMode.asStateFlow()
+    
     val appState: StateFlow<AppState> = _appState.asStateFlow()
     
     private val _aiApiKey = MutableStateFlow<String?>(null)
@@ -114,139 +125,75 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun processProblem() {
         viewModelScope.launch {
             try {
-                Log.d("MainViewModel", "Processing problem: $currentProblem")
-
-                // Get API key once for the entire function
-                val apiKey = _aiApiKey.value
-
-                // NEW: Kotlin-only ML matching using OpenAI embeddings + bundled model/embeddings.
-                if (!apiKey.isNullOrBlank() && currentProblem.isNotBlank()) {
-                    try {
-                        Log.i("MainViewModel", "═══════════════════════════════════════════════════════")
-                        Log.i("MainViewModel", "ATTEMPTING ML MATCHING")
-                        Log.i("MainViewModel", "Query: $currentProblem")
-                        Log.i("MainViewModel", "API Key present: ${!apiKey.isNullOrBlank()}")
-                        val match = kotlinModelRepo.match(currentProblem, apiKey)
-                        if (match != null) {
-                            Log.i("MainViewModel", "✅ ML model match successful: verse=${match.verse.id}, score=${match.score}")
-                            Log.i("MainViewModel", "═══════════════════════════════════════════════════════")
-                            val v = match.verse
-
-                            // Generate complete translation (not word-by-word)
-                            val reflectionGenerator = ReflectionGenerator(apiKey)
-                            val completeTranslation = reflectionGenerator.generateCompleteTranslation(
-                                sanskrit = v.sanskrit,
-                                transliteration = v.transliteration,
-                                wordByWordTranslation = v.translation
-                            ) ?: v.translation // Fallback to original if AI fails
-
-                            val explanation = v.explanation?.trim().orEmpty()
-                            val detailed = v.detailed_explanation?.trim().orEmpty()
-                            val reflectionBase = when {
-                                explanation.isNotBlank() -> explanation
-                                detailed.isNotBlank() -> detailed
-                                else -> "A moment of reflection."
-                            }
-
-                            // Generate personalized reflection that aligns with user's query
-                            val personalizedReflection = reflectionGenerator.generatePersonalizedReflection(
-                                userQuery = currentProblem,
-                                verseSanskrit = v.sanskrit,
-                                verseTranslation = completeTranslation,
-                                verseContext = v.context,
-                                baseExplanation = reflectionBase
-                            ) ?: reflectionBase // Fallback to base if AI fails
-
-                            val reflections = mapOf(
-                                ReflectionAngle.PSYCHOLOGICAL to personalizedReflection,
-                                ReflectionAngle.ACTION to personalizedReflection,
-                                ReflectionAngle.DETACHMENT to personalizedReflection,
-                                ReflectionAngle.COMPASSION to personalizedReflection,
-                                ReflectionAngle.SELFTRUST to personalizedReflection
-                            )
-
-                            val anchorLine = when {
-                                match.story?.moral_lesson?.isNotBlank() == true -> match.story.moral_lesson.trim()
-                                personalizedReflection.isNotBlank() -> personalizedReflection.take(100) + if (personalizedReflection.length > 100) "..." else ""
-                                else -> "A quiet perspective."
-                            }
-
-                            val verseEntry = VerseEntry(
-                                id = v.id,
-                                chapter = v.chapter,
-                                verse = v.verse,
-                                sanskrit = v.sanskrit,
-                                transliteration = v.transliteration,
-                                translation = completeTranslation, // Use complete translation
-                                context = v.context,
-                                reflections = reflections,
-                                anchorLines = listOf(anchorLine)
-                            )
-
-                            currentThemeId = "semantic"
-                            currentSubthemeId = "semantic"
-                            currentVerse = verseEntry
-
-                            // Save to history (best-effort)
-                            try {
-                                storage.addHistoryEntry(
-                                    HistoryEntry(
-                                        timestamp = System.currentTimeMillis(),
-                                        userInput = currentProblem,
-                                        verseId = verseEntry.id,
-                                        anchorLine = anchorLine
-                                    )
-                                )
-                            } catch (e: Exception) {
-                                Log.e("MainViewModel", "Failed to save history (ML path)", e)
-                            }
-
-                            val storyCard = match.story?.let {
-                                StoryCard(
-                                    title = it.title,
-                                    text = it.text,
-                                    moralLesson = it.moral_lesson,
-                                    keyThemes = it.key_themes ?: emptyList()
-                                )
-                            }
-
-                            // Log session usage stats
-                            OpenAIUsageTracker.logSessionStats()
-                            // Update UI stats
-                            _usageStats.value = OpenAIUsageTracker.getUsageSummary()
-
-                            // Use the same Response screen; angle rotation still works (even if texts repeat)
-                            _appState.value = AppState.Response(
-                                verse = verseEntry,
-                                reflection = reflections[ReflectionAngle.PSYCHOLOGICAL] ?: reflectionBase,
-                                anchorLine = anchorLine,
-                                currentAngle = ReflectionAngle.PSYCHOLOGICAL,
-                                userInput = currentProblem,
-                                themeId = currentThemeId,
-                                subthemeId = currentSubthemeId,
-                                story = storyCard
-                            )
-                            return@launch
-                        } else {
-                            Log.w("MainViewModel", "ML matching returned null, falling back to offline")
-                        }
-                    } catch (e: Exception) {
-                        Log.e("MainViewModel", "❌ KotlinModel match failed, falling back to offline selection", e)
-                        e.printStackTrace()
-                    }
-                } else {
-                    Log.w("MainViewModel", "Skipping ML matching - API key: ${if (apiKey.isNullOrBlank()) "MISSING" else "present"}, Problem: ${if (currentProblem.isBlank()) "empty" else "present"}")
+                Log.d("MainViewModel", "FAST Processing: $currentProblem")
+                
+                // Use FAST local matching - no API calls!
+                val match = fastMatcher.match(currentProblem)
+                
+                if (match != null) {
+                    val v = match.verse
+                    Log.i("MainViewModel", "✅ Fast match: ${v.id}, emotion: ${match.emotion}")
+                    
+                    // Use therapeutic response as the reflection
+                    val reflectionBase = match.therapeuticResponse.english
+                    
+                    val reflections = mapOf(
+                        ReflectionAngle.PSYCHOLOGICAL to reflectionBase,
+                        ReflectionAngle.ACTION to reflectionBase,
+                        ReflectionAngle.DETACHMENT to reflectionBase,
+                        ReflectionAngle.COMPASSION to reflectionBase,
+                        ReflectionAngle.SELFTRUST to reflectionBase
+                    )
+                    
+                    val anchorLine = v.wisdom_nugget?.trim() 
+                        ?: reflectionBase.take(100) + if (reflectionBase.length > 100) "..." else ""
+                    
+                    val verseEntry = VerseEntry(
+                        id = v.id,
+                        chapter = v.chapter_number,
+                        verse = v.verse_number,
+                        sanskrit = v.sanskrit_text,
+                        transliteration = v.transliteration,
+                        translation = v.english_translation,
+                        context = v.modern_problem_match ?: "",
+                        reflections = reflections,
+                        anchorLines = listOf(anchorLine)
+                    )
+                    
+                    currentThemeId = match.emotion
+                    currentSubthemeId = match.emotion
+                    currentVerse = verseEntry
+                    
+                    // Store therapeutic response for UI
+                    val debugInfo = com.gita.app.kotlinmodel.MatchDebugInfo(
+                        detectedEmotion = match.emotion.replaceFirstChar { it.uppercase() },
+                        emotionEmoji = getEmotionEmoji(match.emotion),
+                        emotionScore = match.confidence,
+                        emotionComfortingMessage = match.therapeuticResponse.english,
+                        hindiResponse = match.therapeuticResponse.hindi,
+                        allEmotionScores = null
+                    )
+                    
+                    _appState.value = AppState.Response(
+                        verse = verseEntry,
+                        reflection = reflectionBase,
+                        anchorLine = anchorLine,
+                        currentAngle = ReflectionAngle.PSYCHOLOGICAL,
+                        userInput = currentProblem,
+                        themeId = currentThemeId,
+                        subthemeId = currentSubthemeId,
+                        story = null,
+                        debugInfo = debugInfo
+                    )
+                    return@launch
                 }
                 
-                // OFFLINE FALLBACK: keyword matching + deterministic verse rotation
+                // Fallback if no match
+                Log.w("MainViewModel", "No fast match, using fallback")
                 val detectedTheme = ThemeDetector.detectTheme(currentProblem) ?: ThemeDetector.getFallbackTheme()
-                
                 currentThemeId = detectedTheme.themeId
                 currentSubthemeId = detectedTheme.subthemeId
                 
-                Log.d("MainViewModel", "Detected theme: ${detectedTheme.themeId}, subtheme: ${detectedTheme.subthemeId}")
-                
-                // Step 2: Select verse
                 val verse = try {
                     selectionEngine.selectVerse(detectedTheme.themeId, detectedTheme.subthemeId)
                 } catch (e: Exception) {
@@ -255,20 +202,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 
                 if (verse == null) {
-                    Log.e("MainViewModel", "No verse found, returning to home")
                     _appState.value = AppState.Home
                     return@launch
                 }
                 
                 currentVerse = verse
-                Log.d("MainViewModel", "Selected verse: ${verse.id}")
-                
-                // Step 3: Select ONE reflection angle
                 val reflectionAngle = try {
                     selectionEngine.getNextReflectionAngle(verse.id)
                 } catch (e: Exception) {
-                    Log.e("MainViewModel", "Reflection angle failed", e)
-                    ReflectionAngle.PSYCHOLOGICAL // Safe default
+                    ReflectionAngle.PSYCHOLOGICAL
                 }
                 
                 // Step 4: Get base reflection text
@@ -276,43 +218,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     ?: verse.reflections.values.firstOrNull() 
                     ?: "Reflection not available for this verse."
                 
-                // Step 4b: Generate personalized reflection if API key is available
-                val reflection = if (!apiKey.isNullOrBlank()) {
-                    try {
-                        val reflectionGenerator = ReflectionGenerator(apiKey)
-                        val personalized = reflectionGenerator.generatePersonalizedReflection(
-                            userQuery = currentProblem,
-                            verseSanskrit = verse.sanskrit,
-                            verseTranslation = verse.translation,
-                            verseContext = verse.context,
-                            baseExplanation = baseReflection
-                        )
-                        personalized ?: baseReflection
-                    } catch (e: Exception) {
-                        Log.e("MainViewModel", "Failed to generate personalized reflection", e)
-                        baseReflection
-                    }
-                } else {
-                    baseReflection
-                }
+                // Use existing reflection for speed (skip AI calls)
+                val reflection = baseReflection
                 
-                // Step 4c: Generate complete translation if API key is available
-                val completeTranslation = if (!apiKey.isNullOrBlank()) {
-                    try {
-                        val reflectionGenerator = ReflectionGenerator(apiKey)
-                        val complete = reflectionGenerator.generateCompleteTranslation(
-                            sanskrit = verse.sanskrit,
-                            transliteration = verse.transliteration,
-                            wordByWordTranslation = verse.translation
-                        )
-                        complete ?: verse.translation
-                    } catch (e: Exception) {
-                        Log.e("MainViewModel", "Failed to generate complete translation", e)
-                        verse.translation
-                    }
-                } else {
-                    verse.translation
-                }
+                // Use existing translation for speed
+                val completeTranslation = verse.translation
                 
                 // Update verse with complete translation
                 val updatedVerse = verse.copy(translation = completeTranslation)
@@ -368,6 +278,22 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 // Return to home screen on any error
                 _appState.value = AppState.Home
             }
+        }
+    }
+    
+    private fun getEmotionEmoji(emotion: String): String {
+        return when (emotion.lowercase()) {
+            "anxiety" -> "😰"
+            "grief" -> "😢"
+            "anger" -> "😤"
+            "confusion" -> "😕"
+            "fear" -> "😨"
+            "loneliness" -> "😔"
+            "hopelessness" -> "😞"
+            "burnout" -> "😩"
+            "guilt" -> "😣"
+            "attachment" -> "💔"
+            else -> "🙏"
         }
     }
     
@@ -437,5 +363,37 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 Log.e("MainViewModel", "saveAiApiKey failed", e)
             }
         }
+    }
+    
+    /**
+     * Called after successful login or guest mode
+     */
+    fun onLoginComplete() {
+        _appState.value = AppState.Home
+    }
+    
+    /**
+     * Check if user was previously logged in
+     */
+    fun checkLoginState(isLoggedIn: Boolean) {
+        if (isLoggedIn) {
+            _appState.value = AppState.Home
+        }
+    }
+    
+    /**
+     * Called when language is selected
+     */
+    fun onLanguageSelected(languageCode: String) {
+        _selectedLanguage.value = languageCode
+        _appState.value = AppState.Login
+    }
+    
+    fun setLanguage(lang: String) {
+        _selectedLanguage.value = lang
+    }
+    
+    fun setDarkMode(dark: Boolean) {
+        _isDarkMode.value = dark
     }
 }
