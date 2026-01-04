@@ -12,7 +12,10 @@ import java.util.concurrent.TimeUnit
 
 /**
  * OpenAI Chat API client for understanding user queries.
- * Uses GPT-4o-mini to extract key themes, emotions, and intent from user input.
+ * Uses GPT-4o-mini to extract key themes, emotions, intent, and THERAPEUTIC NEEDS from user input.
+ * 
+ * Key enhancement: Detects whether user needs empathy/comfort vs motivation/push
+ * to solve the semantic mismatch problem (e.g., returning challenging verses for comfort queries).
  */
 class OpenAIChatClient(
     private val apiKey: String,
@@ -41,7 +44,10 @@ class OpenAIChatClient(
 
     /**
      * Understands user query and extracts key information for verse matching.
-     * Returns a structured understanding with emotions, themes, and intent.
+     * Returns a structured understanding with emotions, themes, intent, AND therapeutic needs.
+     * 
+     * NEW: Returns detected_need (empathy_needed vs push_needed) and ideal_tone (comforting vs challenging)
+     * to enable re-ranking that matches the verse tone to user's emotional needs.
      */
     suspend fun understandQuery(query: String): QueryUnderstanding? = withContext(Dispatchers.IO) {
         if (query.isBlank()) {
@@ -50,63 +56,103 @@ class OpenAIChatClient(
         }
         
         try {
-            val systemPrompt = """You are an expert at understanding spiritual and emotional queries in the context of the Bhagavad Gita. Your task is to deeply analyze user queries to help find the most relevant verse from the Gita that addresses their situation.
+            val systemPrompt = """You are an expert therapeutic advisor analyzing queries in the context of the Bhagavad Gita. Your task is to deeply understand what the user emotionally NEEDS, not just what they're saying.
 
-The Bhagavad Gita covers themes like:
-- Anxiety and fear (especially before major decisions or conflicts)
-- Grief and loss (mourning, heartbreak, separation)
-- Anger and conflict (rage, frustration, resentment)
-- Attachment and detachment (clinging, possessiveness, desire)
-- Burnout and exhaustion (fatigue, depletion, overwhelm)
-- Identity crisis and self-doubt (purpose, meaning, authentic self)
-- Intellectual and philosophical doubts (skepticism, questioning faith)
-- Loneliness and isolation (abandonment, disconnection)
-- Moral dilemmas and ethical conflicts (dharma, duty vs desire)
-- Pride and ego (arrogance, vanity, self-importance)
-- Result-obsession and attachment to outcomes (perfectionism, fear of failure)
-- Fear (terror, dread, apprehension, paralysis)
-- Jealousy (envy, comparison, resentment of others' success)
-- Guilt (shame, remorse, self-blame, regret)
-- Hopelessness (despair, nihilism, futility, giving up)
-- Confusion (bewilderment, mental fog, decision paralysis)
-- Impatience (restlessness, urgency, frustration with timing)
-- Self-realization and spiritual growth
-- Detachment from results (nishkama karma)
-- Equanimity in success and failure (sthitaprajna)
-- The nature of the self and consciousness
-- The eternal nature of the soul (atman)
-- Dealing with change and impermanence
+## CRITICAL: DETECT THERAPEUTIC NEED
 
-Your analysis should:
-1. Identify the PRIMARY emotion(s) - 1-2 most prominent, in decreasing order of intensity
-2. Extract key themes, situations, or life circumstances
-3. Understand the core intent - what guidance or wisdom they're seeking
-4. Create an enhanced query that captures the essence in terms that would match Gita verses
+The most important part of your analysis is determining:
+1. Does this person need EMPATHY (comfort, validation, understanding) or a PUSH (motivation, challenge, wake-up call)?
+2. What TONE of response would be healing for them?
 
-CRITICAL: The enhanced_query should be written to maximize semantic similarity with Bhagavad Gita verses. Use spiritual, philosophical, and emotional language that aligns with how the Gita addresses these topics.
+### Signs user needs EMPATHY (comfort-first approach):
+- Expressing pain, sadness, grief, loss
+- Feeling overwhelmed, exhausted, hopeless
+- Seeking understanding ("nobody gets it", "I feel so alone")
+- Recently experienced trauma or loss
+- Sounds emotionally fragile or vulnerable
+- Using words like: "can't", "giving up", "so tired", "broken", "lost"
+
+### Signs user needs a PUSH (challenge-first approach):
+- Stuck in inaction due to fear or overthinking
+- Procrastinating or avoiding responsibilities
+- Seeking permission or validation for action they know they should take
+- Expressing frustration with themselves
+- Using words like: "I know I should but...", "I'm being lazy", "I need to just do it"
+
+## Response Format
 
 Respond in JSON format:
 {
   "emotions": ["emotion1", "emotion2"],
   "themes": ["theme1", "theme2", "theme3"],
   "intent": "brief description of what they're seeking",
-  "enhanced_query": "a refined, detailed version that captures the spiritual/emotional essence in Gita-relevant terms"
+  "enhanced_query": "refined version that captures spiritual/emotional essence",
+  "detected_need": "empathy_needed" or "push_needed",
+  "ideal_tone": "comforting" or "challenging" or "philosophical",
+  "therapeutic_goal": "validation" or "motivation" or "detachment" or "perspective" or "acceptance",
+  "vulnerability_level": "high" or "medium" or "low"
 }
 
-Emotions must be from this EXACT list (match exactly, case-sensitive): 
-Anxiety, Grief, Anger, Attachment, Burnout, Identity Crisis, Intellectual Doubt, Loneliness, Moral Dilemma, Pride, Result-Obsession, Fear, Jealousy, Guilt, Hopelessness, Confusion, Impatience
+## Field Definitions
 
-The enhanced_query is crucial - it should be 2-3 sentences that rephrase the user's situation in a way that would semantically match relevant Gita verses. Include emotional context, the situation, and what kind of guidance is needed. Use Sanskrit/spiritual terms where appropriate (e.g., karma, dharma, moksha, atman)."""
+- detected_need: 
+  - "empathy_needed": User needs to feel heard, understood, and validated BEFORE any guidance
+  - "push_needed": User is ready for and would benefit from a direct challenge or call to action
+
+- ideal_tone:
+  - "comforting": Gentle, reassuring, validating (for vulnerable/grieving users)
+  - "challenging": Direct, motivating, firm (for stuck/procrastinating users)
+  - "philosophical": Reflective, perspective-shifting (for confused/questioning users)
+
+- therapeutic_goal:
+  - "validation": User needs to feel their emotions are valid and understood
+  - "motivation": User needs energy and push to take action
+  - "detachment": User needs to let go of attachment or control
+  - "perspective": User needs to see their situation from a higher vantage point
+  - "acceptance": User needs help accepting what cannot be changed
+
+- vulnerability_level:
+  - "high": User seems emotionally fragile, handle with extra care
+  - "medium": User is struggling but stable
+  - "low": User is seeking intellectual guidance, not in crisis
+
+## Emotion Categories
+Emotions must be from: Anxiety, Grief, Anger, Attachment, Burnout, Identity Crisis, Intellectual Doubt, Loneliness, Moral Dilemma, Pride, Result-Obsession, Fear, Jealousy, Guilt, Hopelessness, Confusion, Impatience
+
+## Examples
+
+Example 1: "I feel like giving up on everything"
+{
+  "emotions": ["Hopelessness", "Burnout"],
+  "themes": ["despair", "exhaustion", "loss of meaning"],
+  "intent": "seeking reason to continue",
+  "enhanced_query": "I am overwhelmed by despair and seek wisdom on finding meaning when all feels futile",
+  "detected_need": "empathy_needed",
+  "ideal_tone": "comforting",
+  "therapeutic_goal": "validation",
+  "vulnerability_level": "high"
+}
+
+Example 2: "I keep procrastinating on important decisions"
+{
+  "emotions": ["Fear", "Confusion"],
+  "themes": ["avoidance", "indecision", "self-sabotage"],
+  "intent": "overcome paralysis and take action",
+  "enhanced_query": "I am paralyzed by fear and seek courage to fulfill my dharma",
+  "detected_need": "push_needed",
+  "ideal_tone": "challenging",
+  "therapeutic_goal": "motivation",
+  "vulnerability_level": "low"
+}"""
 
             val userPrompt = """User Query: "$query"
 
-Analyze this query deeply. Consider:
-- What is the user really feeling? (emotional state)
-- What situation are they facing? (life circumstances)
-- What kind of guidance or wisdom would help them? (intent)
-- How would this be expressed in the context of spiritual/philosophical teachings?
+Analyze this query deeply. Most importantly:
+1. What does this person EMOTIONALLY NEED right now?
+2. Would comfort or challenge serve them better?
+3. How vulnerable do they seem?
 
-Provide a comprehensive analysis that will help match this query to the most relevant Bhagavad Gita verse."""
+Provide a comprehensive therapeutic analysis."""
 
             val messages = listOf(
                 mapOf("role" to "system", "content" to systemPrompt),
@@ -116,7 +162,7 @@ Provide a comprehensive analysis that will help match this query to the most rel
             val payload = mapOf(
                 "model" to model,
                 "messages" to messages,
-                "temperature" to 0.7,
+                "temperature" to 0.5, // Lower temperature for more consistent therapeutic assessment
                 "response_format" to mapOf("type" to "json_object")
             )
 
@@ -155,19 +201,7 @@ Provide a comprehensive analysis that will help match this query to the most rel
                     )
                     
                     val costStr = "%.6f".format(cost)
-                    val logMessage = """
-                        ═══════════════════════════════════════════════════════
-                        OpenAI API Usage - Chat Completion
-                        Model: $model
-                        Prompt Tokens: $promptTokens
-                        Completion Tokens: $completionTokens
-                        Total Tokens: $totalTokens
-                        Cost: $$costStr
-                        ═══════════════════════════════════════════════════════
-                    """.trimIndent()
-                    
-                    Log.i(TAG, logMessage)
-                    println(logMessage)
+                    Log.i(TAG, "OpenAI Usage: $totalTokens tokens, cost: $$costStr")
                 }
                 
                 val content = parsed.choices?.firstOrNull()?.message?.content ?: run {
@@ -177,7 +211,14 @@ Provide a comprehensive analysis that will help match this query to the most rel
                 
                 try {
                     val understanding = gson.fromJson(content, QueryUnderstanding::class.java)
-                    Log.i(TAG, "Query understanding: emotions=${understanding.emotions}, themes=${understanding.themes}")
+                    Log.i(TAG, "═══════════════════════════════════════════════════════")
+                    Log.i(TAG, "QUERY UNDERSTANDING RESULT")
+                    Log.i(TAG, "Emotions: ${understanding.emotions}")
+                    Log.i(TAG, "Detected Need: ${understanding.detected_need}")
+                    Log.i(TAG, "Ideal Tone: ${understanding.ideal_tone}")
+                    Log.i(TAG, "Therapeutic Goal: ${understanding.therapeutic_goal}")
+                    Log.i(TAG, "Vulnerability: ${understanding.vulnerability_level}")
+                    Log.i(TAG, "═══════════════════════════════════════════════════════")
                     return@withContext understanding
                 } catch (e: Exception) {
                     Log.e(TAG, "Failed to parse understanding JSON", e)
@@ -194,6 +235,83 @@ Provide a comprehensive analysis that will help match this query to the most rel
         } catch (e: Exception) {
             Log.e(TAG, "Chat API call failed", e)
             e.printStackTrace()
+            null
+        }
+    }
+    
+    /**
+     * Generates a 2-sentence "bridge" explaining why the matched verse is relevant
+     * to the user's specific pain point.
+     */
+    suspend fun generateBridge(
+        userQuery: String,
+        verse: EnrichedVerse,
+        detectedEmotion: String?,
+        therapeuticGoal: String?
+    ): String? = withContext(Dispatchers.IO) {
+        try {
+            val systemPrompt = """You are a compassionate spiritual counselor. Your task is to create a brief, warm "bridge" that connects a user's pain point to a Bhagavad Gita verse.
+
+The bridge should:
+1. Acknowledge their specific situation (1 sentence)
+2. Explain why this verse speaks to their need (1 sentence)
+
+Keep it personal, warm, and specific. Do NOT be preachy or generic. Maximum 2 sentences total."""
+
+            val userPrompt = """User's concern: "$userQuery"
+Detected emotion: ${detectedEmotion ?: "unspecified"}
+Therapeutic goal: ${therapeuticGoal ?: "perspective"}
+
+Verse ${verse.chapter_number}.${verse.verse_number}:
+"${verse.english_translation}"
+
+Context: ${verse.arjuna_despair_link ?: verse.modern_problem_match ?: ""}
+
+Write a 2-sentence bridge connecting their pain to this verse's wisdom."""
+
+            val messages = listOf(
+                mapOf("role" to "system", "content" to systemPrompt),
+                mapOf("role" to "user", "content" to userPrompt)
+            )
+
+            val payload = mapOf(
+                "model" to model,
+                "messages" to messages,
+                "temperature" to 0.7,
+                "max_tokens" to 100
+            )
+
+            val req = Request.Builder()
+                .url("https://api.openai.com/v1/chat/completions")
+                .header("Authorization", "Bearer $apiKey")
+                .header("Content-Type", "application/json")
+                .post(gson.toJson(payload).toRequestBody("application/json".toMediaType()))
+                .build()
+
+            client.newCall(req).execute().use { resp ->
+                if (!resp.isSuccessful) {
+                    Log.e(TAG, "Bridge generation failed: ${resp.code}")
+                    return@withContext null
+                }
+                val body = resp.body?.string() ?: return@withContext null
+                val parsed = gson.fromJson(body, ChatResponse::class.java)
+                
+                // Track usage
+                parsed.usage?.let { usage ->
+                    OpenAIUsageTracker.recordUsage(
+                        model = model,
+                        promptTokens = usage.prompt_tokens ?: 0,
+                        completionTokens = usage.completion_tokens ?: 0,
+                        totalTokens = usage.total_tokens ?: 0
+                    )
+                }
+                
+                val bridge = parsed.choices?.firstOrNull()?.message?.content?.trim()
+                Log.i(TAG, "Generated bridge: $bridge")
+                return@withContext bridge
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Bridge generation failed", e)
             null
         }
     }
@@ -219,12 +337,31 @@ Provide a comprehensive analysis that will help match this query to the most rel
 }
 
 /**
- * Structured understanding of a user query.
+ * Enhanced structured understanding of a user query.
+ * Now includes therapeutic needs detection for re-ranking.
  */
 data class QueryUnderstanding(
     val emotions: List<String>,
     val themes: List<String>,
     val intent: String,
-    val enhanced_query: String
-)
-
+    val enhanced_query: String,
+    
+    // NEW: Therapeutic needs for re-ranking
+    val detected_need: String = "empathy_needed",  // "empathy_needed" or "push_needed"
+    val ideal_tone: String = "philosophical",      // "comforting", "challenging", "philosophical"
+    val therapeutic_goal: String = "perspective",  // "validation", "motivation", "detachment", "perspective", "acceptance"
+    val vulnerability_level: String = "medium"     // "high", "medium", "low"
+) {
+    companion object {
+        const val NEED_EMPATHY = "empathy_needed"
+        const val NEED_PUSH = "push_needed"
+        
+        const val TONE_COMFORTING = "comforting"
+        const val TONE_CHALLENGING = "challenging"
+        const val TONE_PHILOSOPHICAL = "philosophical"
+    }
+    
+    fun needsEmpathy(): Boolean = detected_need == NEED_EMPATHY
+    fun needsPush(): Boolean = detected_need == NEED_PUSH
+    fun isHighVulnerability(): Boolean = vulnerability_level == "high"
+}

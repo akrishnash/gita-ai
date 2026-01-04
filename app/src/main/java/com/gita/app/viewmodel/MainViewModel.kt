@@ -121,20 +121,97 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     /**
      * STEP 2: Called by PauseScreen after delay
      * Processes the problem and generates response
+     * 
+     * If API key available: Uses multi-stage re-ranking RAG pipeline
+     * If no API key: Uses fast local keyword matching
      */
     fun processProblem() {
         viewModelScope.launch {
             try {
-                Log.d("MainViewModel", "FAST Processing: $currentProblem")
+                val apiKey = _aiApiKey.value
                 
-                // Use FAST local matching - no API calls!
+                // ══════════════════════════════════════════════════════════════
+                // ENHANCED MODE: Multi-stage re-ranking with OpenAI (if API key)
+                // ══════════════════════════════════════════════════════════════
+                if (!apiKey.isNullOrBlank()) {
+                    Log.d("MainViewModel", "Using ENHANCED multi-stage re-ranking...")
+                    
+                    val match = kotlinModelRepo.match(currentProblem, apiKey)
+                    
+                    if (match != null) {
+                        val v = match.verse
+                        val debug = match.debugInfo
+                        Log.i("MainViewModel", "✅ Enhanced match: ${v.id}")
+                        Log.i("MainViewModel", "   Method: ${debug?.matchingMethod}")
+                        Log.i("MainViewModel", "   Detected Need: ${debug?.detectedNeed}")
+                        Log.i("MainViewModel", "   Ideal Tone: ${debug?.idealTone}")
+                        Log.i("MainViewModel", "   Actual Tone: ${debug?.actualTone}")
+                        
+                        val reflectionBase = debug?.bridge 
+                            ?: v.explanation 
+                            ?: v.context
+                        
+                        val reflections = mapOf(
+                            ReflectionAngle.PSYCHOLOGICAL to reflectionBase,
+                            ReflectionAngle.ACTION to reflectionBase,
+                            ReflectionAngle.DETACHMENT to reflectionBase,
+                            ReflectionAngle.COMPASSION to reflectionBase,
+                            ReflectionAngle.SELFTRUST to reflectionBase
+                        )
+                        
+                        val anchorLine = v.explanation?.take(100) ?: reflectionBase.take(100)
+                        
+                        val verseEntry = VerseEntry(
+                            id = v.id,
+                            chapter = v.chapter,
+                            verse = v.verse,
+                            sanskrit = v.sanskrit,
+                            transliteration = v.transliteration,
+                            translation = v.translation,
+                            context = v.context,
+                            reflections = reflections,
+                            anchorLines = listOf(anchorLine)
+                        )
+                        
+                        currentThemeId = debug?.detectedEmotion ?: "unknown"
+                        currentSubthemeId = debug?.therapeuticGoal ?: "perspective"
+                        currentVerse = verseEntry
+                        
+                        val storyCard = match.story?.let {
+                            StoryCard(
+                                title = it.title,
+                                text = it.text,
+                                moralLesson = it.moral_lesson,
+                                keyThemes = it.key_themes ?: emptyList()
+                            )
+                        }
+                        
+                        _appState.value = AppState.Response(
+                            verse = verseEntry,
+                            reflection = reflectionBase,
+                            anchorLine = anchorLine,
+                            currentAngle = ReflectionAngle.PSYCHOLOGICAL,
+                            userInput = currentProblem,
+                            themeId = currentThemeId,
+                            subthemeId = currentSubthemeId,
+                            story = storyCard,
+                            debugInfo = debug
+                        )
+                        return@launch
+                    }
+                }
+                
+                // ══════════════════════════════════════════════════════════════
+                // FAST MODE: Local keyword matching (no API calls)
+                // ══════════════════════════════════════════════════════════════
+                Log.d("MainViewModel", "Using FAST local matching...")
+                
                 val match = fastMatcher.match(currentProblem)
                 
                 if (match != null) {
                     val v = match.verse
                     Log.i("MainViewModel", "✅ Fast match: ${v.id}, emotion: ${match.emotion}")
                     
-                    // Use therapeutic response as the reflection
                     val reflectionBase = match.therapeuticResponse.english
                     
                     val reflections = mapOf(
@@ -164,7 +241,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     currentSubthemeId = match.emotion
                     currentVerse = verseEntry
                     
-                    // Store therapeutic response for UI
                     val debugInfo = com.gita.app.kotlinmodel.MatchDebugInfo(
                         detectedEmotion = match.emotion.replaceFirstChar { it.uppercase() },
                         emotionEmoji = getEmotionEmoji(match.emotion),
@@ -188,8 +264,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     return@launch
                 }
                 
-                // Fallback if no match
-                Log.w("MainViewModel", "No fast match, using fallback")
+                // ══════════════════════════════════════════════════════════════
+                // FALLBACK: Theme-based selection
+                // ══════════════════════════════════════════════════════════════
+                Log.w("MainViewModel", "No match found, using theme fallback")
                 val detectedTheme = ThemeDetector.detectTheme(currentProblem) ?: ThemeDetector.getFallbackTheme()
                 currentThemeId = detectedTheme.themeId
                 currentSubthemeId = detectedTheme.subthemeId

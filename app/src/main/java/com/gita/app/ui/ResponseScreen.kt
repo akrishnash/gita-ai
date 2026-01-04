@@ -58,8 +58,9 @@ fun ResponseScreen(
     val accent = if (currentDarkMode) Color(0xFFD4AF37) else Color(0xFF8B7355)  // Gold/Earth
     val divider = if (currentDarkMode) Color(0xFF2A2A2A) else Color(0xFFE5E5E0)
     
-    // Get therapeutic response
-    val therapeuticEn = debugInfo?.emotionComfortingMessage ?: getEmpatheticResponse(debugInfo?.detectedEmotion)
+    // Get therapeutic response - prefer LLM bridge if available
+    val bridge = debugInfo?.bridge
+    val therapeuticEn = bridge ?: debugInfo?.emotionComfortingMessage ?: getEmpatheticResponse(debugInfo?.detectedEmotion)
     val therapeuticHi = debugInfo?.hindiResponse ?: getHindiEmpatheticResponse(debugInfo?.detectedEmotion)
     val therapeutic = if (currentLanguage == "hi") therapeuticHi else therapeuticEn
     

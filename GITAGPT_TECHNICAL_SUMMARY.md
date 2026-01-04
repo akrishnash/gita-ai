@@ -2,6 +2,58 @@
 
 > **Purpose**: This document provides a complete technical overview of the GitaGPT RAG-based chatbot for debugging accuracy issues. It covers data ingestion, retrieval logic, system prompts, and sample traces.
 
+> **Last Updated**: v8 with Multi-Stage Re-ranking to solve Semantic Mismatch problem
+
+---
+
+## 🆕 v8 Changes: Multi-Stage Re-ranking Pipeline
+
+### Problem Solved: Semantic Mismatch
+Previously, verses like 2.3 ("Shake off this weakness!") were retrieved for comfort queries because of word overlap with "hopelessness", even though the TONE was wrong (challenging instead of comforting).
+
+### New Architecture
+```
+User Query → Embedding → LLM Intent Detection → top_k=5 candidates
+                                ↓
+                    [detectedNeed: empathy_needed/push_needed]
+                    [idealTone: comforting/challenging/philosophical]
+                                ↓
+                         Multi-Stage Re-ranking
+                                ↓
+            Score = SemanticSim + ToneBonus - MismatchPenalty
+                                ↓
+                    Winner Verse + LLM Bridge Synthesis
+```
+
+### Re-ranking Formula
+```
+FinalScore = SemanticSimilarity 
+           + (ToneMatchBonus if verseTone == idealTone)        // +0.3
+           - (MismatchPenalty if empathy_needed && challenging) // -0.2
+           + (EmotionBonus if emotion category matches)         // +0.15
+           - (VulnerabilityProtection if high && challenging)   // -0.1
+```
+
+### New Data Fields (EnrichedVerse)
+```kotlin
+data class EnrichedVerse(
+    // ... existing fields ...
+    val tone: String?,              // "comforting", "challenging", "philosophical"
+    val therapeutic_goal: String?   // "validation", "motivation", "detachment", etc.
+)
+```
+
+### New LLM Output (QueryUnderstanding)
+```kotlin
+data class QueryUnderstanding(
+    // ... existing fields ...
+    val detected_need: String,      // "empathy_needed" or "push_needed"
+    val ideal_tone: String,         // "comforting", "challenging", "philosophical"
+    val therapeutic_goal: String,   // "validation", "motivation", etc.
+    val vulnerability_level: String // "high", "medium", "low"
+)
+```
+
 ---
 
 ## Table of Contents
