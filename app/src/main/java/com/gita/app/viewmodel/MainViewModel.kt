@@ -5,7 +5,6 @@ import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.gita.app.BuildConfig
-import com.gita.app.ai.ReflectionGenerator
 import com.gita.app.data.ReflectionAngle
 import com.gita.app.data.VerseEntry
 import com.gita.app.kotlinmodel.KotlinModelRepository
@@ -15,16 +14,23 @@ import com.gita.app.logic.HistoryEntry
 import com.gita.app.logic.LocalStorage
 import com.gita.app.logic.SelectionEngine
 import com.gita.app.logic.ThemeDetector
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
+/**
+ * Navigation state machine for the app.
+ */
 sealed class AppState {
-    object LanguageSelection : AppState()
-    object Login : AppState()
+    /** Animated splash while assets load */
+    object Splash : AppState()
+    /** Main input screen */
     object Home : AppState()
+    /** Breathing animation while processing */
     data class Pause(val userInput: String) : AppState()
+    /** Verse response display */
     data class Response(
         val verse: VerseEntry,
         val reflection: String,
@@ -36,8 +42,16 @@ sealed class AppState {
         val story: StoryCard? = null,
         val debugInfo: com.gita.app.kotlinmodel.MatchDebugInfo? = null
     ) : AppState()
+    /** History list */
     object History : AppState()
+    /** Settings/API key config */
     object Settings : AppState()
+    /** Error with retry */
+    data class Error(
+        val message: String,
+        val isNetworkError: Boolean = false,
+        val retryAction: (() -> Unit)? = null
+    ) : AppState()
 }
 
 data class StoryCard(
@@ -47,15 +61,16 @@ data class StoryCard(
     val keyThemes: List<String> = emptyList()
 )
 
-data class ResponseState(
-    val verse: VerseEntry,
-    val reflection: String,
-    val anchor: String,
-    val currentAngle: ReflectionAngle,
-    val themeId: String,
-    val subthemeId: String
-)
-
+/**
+ * Central ViewModel managing all app state, navigation, and data flow.
+ * 
+ * Lifecycle:
+ * 1. Splash → load preferences + warm up model
+ * 2. Home → user inputs problem
+ * 3. Pause → breathing animation + processing
+ * 4. Response → verse display
+ * 5. Error → on API failure, with retry
+ */
 class MainViewModel(application: Application) : AndroidViewModel(application) {
     
     private val storage = LocalStorage(application.applicationContext)
@@ -63,22 +78,24 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val kotlinModelRepo = KotlinModelRepository(application.applicationContext)
     private val fastMatcher = com.gita.app.kotlinmodel.FastMatcher(application.applicationContext)
     
-    private val _appState = MutableStateFlow<AppState>(AppState.LanguageSelection)
+    private val _appState = MutableStateFlow<AppState>(AppState.Splash)
+    val appState: StateFlow<AppState> = _appState.asStateFlow()
     
     // Language preference
-    private val _selectedLanguage = MutableStateFlow<String>("en")
+    private val _selectedLanguage = MutableStateFlow("en")
     val selectedLanguage: StateFlow<String> = _selectedLanguage.asStateFlow()
     
-    private val _isDarkMode = MutableStateFlow<Boolean>(true)
+    private val _isDarkMode = MutableStateFlow(true)
     val isDarkMode: StateFlow<Boolean> = _isDarkMode.asStateFlow()
-    
-    val appState: StateFlow<AppState> = _appState.asStateFlow()
     
     private val _aiApiKey = MutableStateFlow<String?>(null)
     val aiApiKey: StateFlow<String?> = _aiApiKey.asStateFlow()
     
     private val _usageStats = MutableStateFlow(OpenAIUsageTracker.getUsageSummary())
     val usageStats: StateFlow<OpenAIUsageTracker.UsageSummary> = _usageStats.asStateFlow()
+    
+    private val _historyEntries = MutableStateFlow<List<HistoryEntry>>(emptyList())
+    val historyEntries: StateFlow<List<HistoryEntry>> = _historyEntries.asStateFlow()
     
     // Store current problem and theme for alternate perspectives
     private var currentProblem: String = ""
@@ -87,29 +104,42 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private var currentVerse: VerseEntry? = null
     
     init {
-        // Test log to verify logging is working
         Log.i("MainViewModel", "═══════════════════════════════════════════════════════")
-        Log.i("MainViewModel", "Gita App - Token Usage Tracking Enabled")
-        Log.i("MainViewModel", "Look for 'OpenAIEmbeddingsClient' and 'OpenAIUsageTracker' in Logcat")
+        Log.i("MainViewModel", "Gita App — Initializing")
         Log.i("MainViewModel", "═══════════════════════════════════════════════════════")
-        println("Gita App - Token Usage Tracking Enabled. Check Logcat for OpenAI usage logs.")
         
-        // Load API key in background
+        // Load all saved state and warm up assets
         viewModelScope.launch {
             try {
+                // Load persisted preferences
+                _isDarkMode.value = storage.getDarkMode()
+                _selectedLanguage.value = storage.getLanguage()
+                
+                // Load API key
                 val saved = storage.getAiApiKey()
                 val buildConfigKey = BuildConfig.OPENAI_API_KEY.takeIf { it.isNotBlank() }
                 _aiApiKey.value = saved ?: buildConfigKey
+                
                 // Warm up KotlinModel assets (models + embeddings + verse/story data)
                 kotlinModelRepo.ensureInitialized()
+                
+                // Brief splash display (min 1.5s for the animation)
+                delay(1500)
             } catch (e: Exception) {
-                Log.e("MainViewModel", "Failed to load API key", e)
+                Log.e("MainViewModel", "Initialization error (non-fatal)", e)
+            } finally {
+                // Always proceed to Home, even if init partially fails
+                _appState.value = AppState.Home
             }
         }
     }
     
+    // ═══════════════════════════════════════════════════════════════
+    // Chat Flow
+    // ═══════════════════════════════════════════════════════════════
+    
     /**
-     * STEP 1: Called when user clicks Continue on HomeScreen
+     * STEP 1: User submits a problem from HomeScreen.
      */
     fun submitProblem(problemText: String) {
         if (problemText.isNotBlank()) {
@@ -119,11 +149,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
     
     /**
-     * STEP 2: Called by PauseScreen after delay
-     * Processes the problem and generates response
+     * STEP 2: Process the problem and generate response.
      * 
-     * If API key available: Uses multi-stage re-ranking RAG pipeline
-     * If no API key: Uses fast local keyword matching
+     * Pipeline priority:
+     * 1. Enhanced mode (OpenAI RAG) — if API key available
+     * 2. Fast mode (local keyword matching) — offline fallback
+     * 3. Theme-based selection — ultimate fallback
      */
     fun processProblem() {
         viewModelScope.launch {
@@ -131,21 +162,22 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val apiKey = _aiApiKey.value
                 
                 // ══════════════════════════════════════════════════════════════
-                // ENHANCED MODE: Multi-stage re-ranking with OpenAI (if API key)
+                // ENHANCED MODE: Multi-stage re-ranking with OpenAI
                 // ══════════════════════════════════════════════════════════════
                 if (!apiKey.isNullOrBlank()) {
                     Log.d("MainViewModel", "Using ENHANCED multi-stage re-ranking...")
                     
-                    val match = kotlinModelRepo.match(currentProblem, apiKey)
+                    val match = try {
+                        kotlinModelRepo.match(currentProblem, apiKey)
+                    } catch (e: Exception) {
+                        Log.e("MainViewModel", "Enhanced matching failed", e)
+                        null
+                    }
                     
                     if (match != null) {
                         val v = match.verse
                         val debug = match.debugInfo
                         Log.i("MainViewModel", "✅ Enhanced match: ${v.id}")
-                        Log.i("MainViewModel", "   Method: ${debug?.matchingMethod}")
-                        Log.i("MainViewModel", "   Detected Need: ${debug?.detectedNeed}")
-                        Log.i("MainViewModel", "   Ideal Tone: ${debug?.idealTone}")
-                        Log.i("MainViewModel", "   Actual Tone: ${debug?.actualTone}")
                         
                         val reflectionBase = debug?.bridge 
                             ?: v.explanation 
@@ -186,6 +218,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                             )
                         }
                         
+                        // Save to history
+                        saveHistoryEntry(verseEntry, anchorLine)
+                        
+                        // Update usage stats
+                        _usageStats.value = OpenAIUsageTracker.getUsageSummary()
+                        
                         _appState.value = AppState.Response(
                             verse = verseEntry,
                             reflection = reflectionBase,
@@ -199,6 +237,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         )
                         return@launch
                     }
+                    
+                    // If enhanced match returned null (API error), fall through to fast mode
+                    Log.w("MainViewModel", "Enhanced mode returned null, falling back to fast mode")
                 }
                 
                 // ══════════════════════════════════════════════════════════════
@@ -250,6 +291,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         allEmotionScores = null
                     )
                     
+                    // Save to history
+                    saveHistoryEntry(verseEntry, anchorLine)
+                    
                     _appState.value = AppState.Response(
                         verse = verseEntry,
                         reflection = reflectionBase,
@@ -280,7 +324,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 
                 if (verse == null) {
-                    _appState.value = AppState.Home
+                    _appState.value = AppState.Error(
+                        message = "Could not find a relevant verse. Please try rephrasing your question.",
+                        isNetworkError = false,
+                        retryAction = { navigateToHome() }
+                    )
                     return@launch
                 }
                 
@@ -291,22 +339,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     ReflectionAngle.PSYCHOLOGICAL
                 }
                 
-                // Step 4: Get base reflection text
                 val baseReflection = verse.reflections[reflectionAngle] 
                     ?: verse.reflections.values.firstOrNull() 
                     ?: "Reflection not available for this verse."
                 
-                // Use existing reflection for speed (skip AI calls)
-                val reflection = baseReflection
-                
-                // Use existing translation for speed
-                val completeTranslation = verse.translation
-                
-                // Update verse with complete translation
-                val updatedVerse = verse.copy(translation = completeTranslation)
-                currentVerse = updatedVerse
-                
-                // Step 5: Select ONE anchor line
                 val anchorLine = try {
                     val line = selectionEngine.getAnchorLine(verse)
                     if (line.isBlank()) {
@@ -319,29 +355,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     verse.anchorLines.firstOrNull() ?: "Anchor line not available."
                 }
                 
-                Log.d("MainViewModel", "Response generated successfully")
+                // Save to history
+                saveHistoryEntry(verse, anchorLine)
                 
-                // Update usage stats (in case any API calls were made)
+                // Update usage stats
                 _usageStats.value = OpenAIUsageTracker.getUsageSummary()
                 
-                // Step 6: Save to history
-                try {
-                    val historyEntry = HistoryEntry(
-                        timestamp = System.currentTimeMillis(),
-                        userInput = currentProblem,
-                        verseId = verse.id,
-                        anchorLine = anchorLine
-                    )
-                    storage.addHistoryEntry(historyEntry)
-                } catch (e: Exception) {
-                    Log.e("MainViewModel", "Failed to save history", e)
-                    // Continue - history is non-critical
-                }
-                
-                // Step 7: Update UI state
                 _appState.value = AppState.Response(
-                    verse = updatedVerse,
-                    reflection = reflection,
+                    verse = verse,
+                    reflection = baseReflection,
                     anchorLine = anchorLine,
                     currentAngle = reflectionAngle,
                     userInput = currentProblem,
@@ -350,12 +372,51 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     story = null
                 )
                 
+            } catch (e: java.net.UnknownHostException) {
+                Log.e("MainViewModel", "Network error", e)
+                _appState.value = AppState.Error(
+                    message = "Unable to connect. Please check your internet connection and try again.",
+                    isNetworkError = true,
+                    retryAction = {
+                        _appState.value = AppState.Pause(currentProblem)
+                        processProblem()
+                    }
+                )
+            } catch (e: java.net.SocketTimeoutException) {
+                Log.e("MainViewModel", "Timeout error", e)
+                _appState.value = AppState.Error(
+                    message = "The request timed out. Please try again.",
+                    isNetworkError = true,
+                    retryAction = {
+                        _appState.value = AppState.Pause(currentProblem)
+                        processProblem()
+                    }
+                )
             } catch (e: Exception) {
                 Log.e("MainViewModel", "CRITICAL: processProblem failed", e)
-                e.printStackTrace()
-                // Return to home screen on any error
-                _appState.value = AppState.Home
+                _appState.value = AppState.Error(
+                    message = "Something went wrong. Please try again.",
+                    isNetworkError = false,
+                    retryAction = { navigateToHome() }
+                )
             }
+        }
+    }
+    
+    /**
+     * Save a history entry for the current interaction.
+     */
+    private suspend fun saveHistoryEntry(verse: VerseEntry, anchorLine: String) {
+        try {
+            val historyEntry = HistoryEntry(
+                timestamp = System.currentTimeMillis(),
+                userInput = currentProblem,
+                verseId = verse.id,
+                anchorLine = anchorLine
+            )
+            storage.addHistoryEntry(historyEntry)
+        } catch (e: Exception) {
+            Log.e("MainViewModel", "Failed to save history (non-critical)", e)
         }
     }
     
@@ -371,13 +432,23 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             "burnout" -> "😩"
             "guilt" -> "😣"
             "attachment" -> "💔"
+            "identity crisis" -> "🪞"
+            "intellectual doubt" -> "🤔"
+            "moral dilemma" -> "⚖️"
+            "pride" -> "👑"
+            "result-obsession" -> "🎯"
+            "jealousy" -> "💚"
+            "impatience" -> "⏳"
             else -> "🙏"
         }
     }
     
+    // ═══════════════════════════════════════════════════════════════
+    // Alternate Perspective
+    // ═══════════════════════════════════════════════════════════════
+    
     /**
-     * STEP 7: Alternate perspective - rotate reflection angle for SAME verse
-     * OR select another verse from SAME subtheme
+     * Rotate reflection angle for the same verse.
      */
     fun getAnotherPerspective() {
         viewModelScope.launch {
@@ -389,7 +460,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 
                 val verse = currentVerse ?: currentState.verse
                 
-                // Option: Rotate reflection angle for SAME verse
                 val nextAngle = try {
                     selectionEngine.getNextReflectionAngle(verse.id)
                 } catch (e: Exception) {
@@ -401,12 +471,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     ?: verse.reflections.values.firstOrNull() 
                     ?: currentState.reflection
                 
-                // Keep same anchor line (deterministic, so same verse = same anchor)
-                val anchorLine = currentState.anchorLine
-                
                 _appState.value = currentState.copy(
                     reflection = reflection,
-                    anchorLine = anchorLine,
+                    anchorLine = currentState.anchorLine,
                     currentAngle = nextAngle
                 )
                 
@@ -416,6 +483,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
     
+    // ═══════════════════════════════════════════════════════════════
+    // Navigation
+    // ═══════════════════════════════════════════════════════════════
+    
     fun navigateToHome() {
         currentProblem = ""
         currentVerse = null
@@ -423,14 +494,27 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
     
     fun navigateToHistory() {
-        _appState.value = AppState.History
+        viewModelScope.launch {
+            _historyEntries.value = storage.getHistoryEntries()
+            _appState.value = AppState.History
+        }
     }
     
     fun navigateToSettings() {
-        // Refresh usage stats when opening settings
         _usageStats.value = OpenAIUsageTracker.getUsageSummary()
         _appState.value = AppState.Settings
     }
+    
+    fun deleteHistoryEntry(timestamp: Long) {
+        viewModelScope.launch {
+            storage.deleteHistoryEntry(timestamp)
+            _historyEntries.value = storage.getHistoryEntries()
+        }
+    }
+    
+    // ═══════════════════════════════════════════════════════════════
+    // User Preferences
+    // ═══════════════════════════════════════════════════════════════
     
     fun saveAiApiKey(key: String?) {
         viewModelScope.launch {
@@ -443,35 +527,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
     
-    /**
-     * Called after successful login or guest mode
-     */
-    fun onLoginComplete() {
-        _appState.value = AppState.Home
-    }
-    
-    /**
-     * Check if user was previously logged in
-     */
-    fun checkLoginState(isLoggedIn: Boolean) {
-        if (isLoggedIn) {
-            _appState.value = AppState.Home
-        }
-    }
-    
-    /**
-     * Called when language is selected
-     */
-    fun onLanguageSelected(languageCode: String) {
-        _selectedLanguage.value = languageCode
-        _appState.value = AppState.Login
-    }
-    
     fun setLanguage(lang: String) {
         _selectedLanguage.value = lang
+        viewModelScope.launch {
+            storage.setLanguage(lang)
+        }
     }
     
     fun setDarkMode(dark: Boolean) {
         _isDarkMode.value = dark
+        viewModelScope.launch {
+            storage.setDarkMode(dark)
+        }
     }
 }

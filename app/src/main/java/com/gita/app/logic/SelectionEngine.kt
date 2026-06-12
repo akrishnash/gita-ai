@@ -3,12 +3,13 @@ package com.gita.app.logic
 import com.gita.app.data.GitaMap
 import com.gita.app.data.ReflectionAngle
 import com.gita.app.data.VerseEntry
-import com.gita.app.logic.LocalStorage
 import kotlin.math.absoluteValue
 
 /**
  * Handles verse selection with rotation and non-repetition logic.
  * Tracks seen verses and rotates reflection angles.
+ * 
+ * All operations are suspend functions — no blocking calls.
  */
 class SelectionEngine(private val storage: LocalStorage) {
     
@@ -24,9 +25,8 @@ class SelectionEngine(private val storage: LocalStorage) {
             return null
         }
         
-        // Use suspend functions to avoid blocking
-        val seenVerseIds = storage.getSeenVerseIdsSuspend()
-        val lastVerseId = storage.getLastVerseIdSuspend()
+        val seenVerseIds = storage.getSeenVerseIds()
+        val lastVerseId = storage.getLastVerseId()
         
         // Filter out the last verse to avoid immediate repetition
         val availableVerses = if (lastVerseId != null) {
@@ -51,7 +51,7 @@ class SelectionEngine(private val storage: LocalStorage) {
             versesToChooseFrom[index]
         }
         
-        // Mark as seen and update last verse (these are suspend functions)
+        // Mark as seen and update last verse
         try {
             storage.addSeenVerseId(selectedVerse.id)
             storage.setLastVerseId(selectedVerse.id)
@@ -68,7 +68,7 @@ class SelectionEngine(private val storage: LocalStorage) {
      * Rotates through available angles to provide variety.
      */
     suspend fun getNextReflectionAngle(verseId: String): ReflectionAngle {
-        val lastAngle = storage.getLastReflectionAngleSuspend(verseId)
+        val lastAngle = storage.getLastReflectionAngle(verseId)
         val allAngles = ReflectionAngle.values().toList()
         
         val currentIndex = if (lastAngle != null) {
@@ -96,7 +96,7 @@ class SelectionEngine(private val storage: LocalStorage) {
      * Gets an anchor line from the verse's anchor lines.
      * Rotates through anchor lines deterministically based on verse ID.
      */
-    suspend fun getAnchorLine(verse: VerseEntry): String {
+    fun getAnchorLine(verse: VerseEntry): String {
         return if (verse.anchorLines.isNotEmpty()) {
             // Deterministic selection based on verse ID hash
             val index = verse.id.hashCode().absoluteValue % verse.anchorLines.size
@@ -106,4 +106,3 @@ class SelectionEngine(private val storage: LocalStorage) {
         }
     }
 }
-

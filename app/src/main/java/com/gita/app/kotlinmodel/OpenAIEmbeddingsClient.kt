@@ -19,10 +19,7 @@ class OpenAIEmbeddingsClient(
     private val apiKey: String,
     private val model: String = "text-embedding-3-small"
 ) {
-    private val client = OkHttpClient.Builder()
-        .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(45, TimeUnit.SECONDS)
-        .build()
+    private val client = com.gita.app.network.NetworkModule.client
 
     private val gson = Gson()
     

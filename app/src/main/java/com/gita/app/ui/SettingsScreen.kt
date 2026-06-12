@@ -1,14 +1,31 @@
 package com.gita.app.ui
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.outlined.Key
+import androidx.compose.material.icons.outlined.Analytics
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
-import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.ui.unit.sp
 import com.gita.app.kotlinmodel.OpenAIUsageTracker
+import com.gita.app.ui.theme.*
 
+/**
+ * Settings screen — API key management, usage stats, and app info.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
@@ -19,197 +36,329 @@ fun SettingsScreen(
 ) {
     var apiKeyInput by remember { mutableStateOf(aiApiKey ?: "") }
     
+    val bgPrimary = SurfaceDark
+    val bgCard = SurfaceDarkElevated
+    val textPrimary = OnSurfaceDark
+    val textMuted = OnSurfaceDarkMuted
+    val accent = IndigoLight
+    val gold = SaffronGold
+    val divider = OutlineDark
+    
     Scaffold(
+        containerColor = bgPrimary,
         topBar = {
-            TopAppBar(
-                title = { Text("Settings") },
-                navigationIcon = {
-                    TextButton(onClick = onBack) {
-                        Text("Back")
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                color = bgPrimary
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 8.dp)
+                        .statusBarsPadding(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(
+                        onClick = onBack,
+                        modifier = Modifier.size(40.dp)
+                    ) {
+                        Icon(
+                            Icons.AutoMirrored.Outlined.ArrowBack,
+                            contentDescription = "Back",
+                            tint = textMuted,
+                            modifier = Modifier.size(20.dp)
+                        )
                     }
+                    
+                    Text(
+                        text = "SETTINGS",
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = FontWeight.Light,
+                            letterSpacing = 4.sp,
+                            fontSize = 14.sp
+                        ),
+                        color = textMuted
+                    )
+                    
+                    Spacer(modifier = Modifier.size(40.dp))
                 }
-            )
+            }
         }
     ) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(24.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
-            Text(
-                text = "OpenAI API Key",
-                style = MaterialTheme.typography.titleMedium
-            )
-            
-            Text(
-                text = "This app uses OpenAI embeddings to match your query to a verse and a related story. The key is stored only on your device.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            
-            OutlinedTextField(
-                value = apiKeyInput,
-                onValueChange = { apiKeyInput = it },
+            // ═══════════════════════════════════════════════════════
+            // API Key Section
+            // ═══════════════════════════════════════════════════════
+            Card(
                 modifier = Modifier.fillMaxWidth(),
-                label = { Text("API Key") },
-                placeholder = { Text("sk-...") },
-                singleLine = true
-            )
-            
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = bgCard),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
             ) {
-                OutlinedButton(
-                    onClick = {
-                        onSaveApiKey(null)
-                        apiKeyInput = ""
-                    },
-                    modifier = Modifier.weight(1f)
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(1.dp, divider, RoundedCornerShape(16.dp))
+                        .padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    Text("Clear")
-                }
-                
-                Button(
-                    onClick = {
-                        onSaveApiKey(apiKeyInput.takeIf { it.isNotBlank() })
-                    },
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text("Save")
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            Icons.Outlined.Key,
+                            contentDescription = null,
+                            tint = gold,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Text(
+                            text = "OpenAI API Key",
+                            style = MaterialTheme.typography.titleSmall.copy(
+                                fontWeight = FontWeight.Medium
+                            ),
+                            color = textPrimary
+                        )
+                    }
+                    
+                    Text(
+                        text = "The key enables AI-powered verse matching. It's stored only on your device. Without a key, the app uses offline keyword matching.",
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            lineHeight = 20.sp
+                        ),
+                        color = textMuted
+                    )
+                    
+                    OutlinedTextField(
+                        value = apiKeyInput,
+                        onValueChange = { apiKeyInput = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = {
+                            Text("sk-...", color = textMuted.copy(alpha = 0.3f))
+                        },
+                        singleLine = true,
+                        visualTransformation = PasswordVisualTransformation(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = accent,
+                            unfocusedBorderColor = divider,
+                            cursorColor = accent,
+                            focusedTextColor = textPrimary,
+                            unfocusedTextColor = textPrimary
+                        )
+                    )
+                    
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = {
+                                onSaveApiKey(null)
+                                apiKeyInput = ""
+                            },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(12.dp),
+                            border = ButtonDefaults.outlinedButtonBorder.copy(
+                                brush = androidx.compose.ui.graphics.Brush.linearGradient(
+                                    listOf(divider, divider)
+                                )
+                            ),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = textMuted
+                            )
+                        ) {
+                            Text("Clear", fontSize = 13.sp)
+                        }
+                        
+                        Button(
+                            onClick = {
+                                onSaveApiKey(apiKeyInput.takeIf { it.isNotBlank() })
+                            },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = accent,
+                                contentColor = Color(0xFF1A1A1A)
+                            )
+                        ) {
+                            Text("Save", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+                    
+                    // Status indicator
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .background(
+                                    if (aiApiKey.isNullOrBlank()) Color(0xFF666666) else SageGreen,
+                                    shape = androidx.compose.foundation.shape.CircleShape
+                                )
+                        )
+                        Text(
+                            text = if (aiApiKey.isNullOrBlank()) "Offline mode (keyword matching)" else "AI mode (OpenAI RAG pipeline)",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = textMuted
+                        )
+                    }
                 }
             }
             
-            Divider(modifier = Modifier.padding(vertical = 16.dp))
-            
-            Text(
-                text = "If you clear the key, the app falls back to the offline deterministic mode.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            
-            Divider(modifier = Modifier.padding(vertical = 16.dp))
-            
-            // Token Usage Section
-            Text(
-                text = "API Usage",
-                style = MaterialTheme.typography.titleMedium
-            )
-            
+            // ═══════════════════════════════════════════════════════
+            // Usage Stats Section
+            // ═══════════════════════════════════════════════════════
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant
-                )
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = bgCard),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
             ) {
                 Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(1.dp, divider, RoundedCornerShape(16.dp))
+                        .padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            Icons.Outlined.Analytics,
+                            contentDescription = null,
+                            tint = accent,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Text(
+                            text = "Session Usage",
+                            style = MaterialTheme.typography.titleSmall.copy(
+                                fontWeight = FontWeight.Medium
+                            ),
+                            color = textPrimary
+                        )
+                    }
+                    
                     if (usageStats.totalRequests == 0) {
                         Text(
                             text = "No API calls made yet in this session.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            style = MaterialTheme.typography.bodySmall,
+                            color = textMuted
                         )
                     } else {
-                        // Total Summary
-                        Text(
-                            text = "Session Total",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Bold
-                        )
-                        
+                        // Stats grid
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Column {
-                                Text(
-                                    text = "Requests",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Text(
-                                    text = "${usageStats.totalRequests}",
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    fontWeight = FontWeight.Medium
-                                )
-                            }
-                            Column {
-                                Text(
-                                    text = "Total Tokens",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Text(
-                                    text = "${usageStats.totalTokens}",
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    fontWeight = FontWeight.Medium
-                                )
-                            }
-                            Column {
-                                Text(
-                                    text = "Cost",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Text(
-                                    text = "$${"%.6f".format(usageStats.totalCost)}",
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    fontWeight = FontWeight.Medium,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                            }
+                            StatItem("Requests", "${usageStats.totalRequests}", textPrimary, textMuted)
+                            StatItem("Tokens", "${usageStats.totalTokens}", textPrimary, textMuted)
+                            StatItem("Cost", "${"%.4f".format(usageStats.totalCost)}", accent, textMuted)
                         }
                         
-                        // Model Breakdown
+                        // Model breakdown
                         if (usageStats.modelBreakdown.isNotEmpty()) {
-                            Divider(modifier = Modifier.padding(vertical = 8.dp))
+                            Divider(color = divider)
                             
                             Text(
-                                text = "By Model",
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.Bold
+                                text = "BY MODEL",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    letterSpacing = 2.sp,
+                                    fontWeight = FontWeight.Medium
+                                ),
+                                color = textMuted
                             )
                             
                             usageStats.modelBreakdown.forEach { modelInfo ->
-                                Column(
+                                Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .padding(vertical = 4.dp),
-                                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Text(
                                         text = modelInfo.model,
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        fontWeight = FontWeight.Medium
+                                        style = MaterialTheme.typography.bodySmall.copy(
+                                            fontWeight = FontWeight.Medium
+                                        ),
+                                        color = textPrimary
                                     )
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween
-                                    ) {
-                                        Text(
-                                            text = "${modelInfo.requests} req • ${modelInfo.totalTokens} tokens",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                        Text(
-                                            text = "$${"%.6f".format(modelInfo.cost)}",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.primary
-                                        )
-                                    }
+                                    Text(
+                                        text = "${modelInfo.requests} req · ${modelInfo.totalTokens} tok · ${"%.4f".format(modelInfo.cost)}",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = textMuted
+                                    )
                                 }
                             }
                         }
                     }
                 }
             }
+            
+            // ═══════════════════════════════════════════════════════
+            // About Section
+            // ═══════════════════════════════════════════════════════
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(
+                    text = "Gita AI",
+                    style = MaterialTheme.typography.labelMedium.copy(
+                        letterSpacing = 2.sp
+                    ),
+                    color = textMuted.copy(alpha = 0.5f)
+                )
+                Text(
+                    text = "Ancient wisdom, modern guidance",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = textMuted.copy(alpha = 0.3f)
+                )
+            }
+            
+            Spacer(modifier = Modifier.height(24.dp))
         }
     }
 }
 
-
+@Composable
+private fun StatItem(
+    label: String,
+    value: String,
+    valueColor: Color,
+    labelColor: Color
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        Text(
+            text = value,
+            style = MaterialTheme.typography.titleMedium.copy(
+                fontWeight = FontWeight.Medium
+            ),
+            color = valueColor
+        )
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = labelColor
+        )
+    }
+}

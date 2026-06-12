@@ -4,6 +4,12 @@ package com.gita.app.kotlinmodel
 
 data class VersesRoot(val verses: List<ExpandedVerse> = emptyList())
 
+data class EmbeddingsRoot(
+    val model: String = "",
+    val dimension: Int = 0,
+    val embeddings: Map<String, List<Double>> = emptyMap()
+)
+
 data class ExpandedVerse(
     val id: String,
     val chapter: Int,

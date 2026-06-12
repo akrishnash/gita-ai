@@ -341,9 +341,8 @@ class KotlinModelRepository(private val context: Context) {
         return try {
             context.assets.open(VERSE_EMB_JSON).use { input ->
                 val reader = InputStreamReader(input)
-                val type = object : com.google.gson.reflect.TypeToken<Map<String, List<Double>>>() {}.type
-                val raw: Map<String, List<Double>> = gson.fromJson(reader, type)
-                raw.mapValues { (_, v) -> FloatArray(v.size) { i -> v[i].toFloat() } }
+                val root = gson.fromJson(reader, EmbeddingsRoot::class.java)
+                root.embeddings.mapValues { (_, v) -> FloatArray(v.size) { i -> v[i].toFloat() } }
             }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to load verse embeddings", e)
@@ -355,9 +354,8 @@ class KotlinModelRepository(private val context: Context) {
         return try {
             context.assets.open(VERSES_JSON).use { input ->
                 val reader = InputStreamReader(input)
-                val type = object : com.google.gson.reflect.TypeToken<List<ExpandedVerse>>() {}.type
-                val list: List<ExpandedVerse> = gson.fromJson(reader, type)
-                list.associateBy { it.id }
+                val root = gson.fromJson(reader, VersesRoot::class.java)
+                root.verses.associateBy { it.id }
             }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to load verses", e)
@@ -369,9 +367,8 @@ class KotlinModelRepository(private val context: Context) {
         return try {
             context.assets.open(STORIES_JSON).use { input ->
                 val reader = InputStreamReader(input)
-                val type = object : com.google.gson.reflect.TypeToken<List<ExpandedStory>>() {}.type
-                val list: List<ExpandedStory> = gson.fromJson(reader, type)
-                list.associateBy { it.key }
+                val root = gson.fromJson(reader, StoriesRoot::class.java)
+                root.stories.associateBy { it.key }
             }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to load stories", e)

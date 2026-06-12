@@ -3,12 +3,13 @@ package com.gita.app.ui
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import com.gita.app.viewmodel.AppState
 import com.gita.app.viewmodel.MainViewModel
 
+/**
+ * State-based navigation router. Renders the appropriate screen
+ * based on the current AppState from the ViewModel.
+ */
 @Composable
 fun AppNavigation(viewModel: MainViewModel) {
     val appState by viewModel.appState.collectAsState()
@@ -16,16 +17,11 @@ fun AppNavigation(viewModel: MainViewModel) {
     val usageStats by viewModel.usageStats.collectAsState()
     val selectedLanguage by viewModel.selectedLanguage.collectAsState()
     val isDarkMode by viewModel.isDarkMode.collectAsState()
+    val historyEntries by viewModel.historyEntries.collectAsState()
     
     when (val state = appState) {
-        is AppState.LanguageSelection -> {
-            // Skip language selection - go directly to Home
-            // Language can be changed from toggles in Home/Response screens
-            viewModel.onLoginComplete()
-        }
-        is AppState.Login -> {
-            // Skip login - go directly to Home
-            viewModel.onLoginComplete()
+        is AppState.Splash -> {
+            SplashScreen()
         }
         is AppState.Home -> {
             HomeScreen(
@@ -79,7 +75,7 @@ fun AppNavigation(viewModel: MainViewModel) {
         }
         is AppState.History -> {
             HistoryScreen(
-                historyEntries = emptyList(),
+                historyEntries = historyEntries,
                 onBack = {
                     viewModel.navigateToHome()
                 }
@@ -95,6 +91,15 @@ fun AppNavigation(viewModel: MainViewModel) {
                 onBack = {
                     viewModel.navigateToHome()
                 }
+            )
+        }
+        is AppState.Error -> {
+            ErrorScreen(
+                message = state.message,
+                isNetworkError = state.isNetworkError,
+                isDarkMode = isDarkMode,
+                onRetry = state.retryAction,
+                onHome = { viewModel.navigateToHome() }
             )
         }
     }

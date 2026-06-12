@@ -1,7 +1,6 @@
 package com.gita.app.ui.theme
 
 import android.app.Activity
-import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
@@ -14,108 +13,139 @@ import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
 /**
- * Gita App Theme - Inspired by ancient manuscripts, sacred texts, and the divine
+ * Gita App Theme — Spiritual, modern, immersive
  * 
- * A warm, earthy palette with rich accents that evokes:
- * - Saffron robes of wisdom
- * - Ancient palm leaf manuscripts  
- * - Temple architecture and sacred geometry
- * - The lotus emerging from muddy waters
+ * Design philosophy:
+ * - Dark mode: Deep charcoal with indigo/gold accents — meditative, immersive
+ * - Light mode: Warm whites with earthy browns and sage — calm, manuscript-inspired
+ * 
+ * Color system:
+ * - Primary: Indigo (spiritual wisdom, depth)
+ * - Secondary: Sage Green (nature, healing, balance)
+ * - Tertiary: Saffron Gold (divinity, warmth, tradition)
  */
 
-// Primary Colors - Warm Saffron/Gold palette (represents wisdom, renunciation)
-val SaffronGold = Color(0xFFD4A12A)
-val DeepSaffron = Color(0xFFFF8F00)
-val BurntSaffron = Color(0xFFEF6C00)
+// ═══════════════════════════════════════════════════════════════
+// Primary — Deep Indigo (spiritual depth, wisdom)
+// ═══════════════════════════════════════════════════════════════
+val IndigoPrimary = Color(0xFF4A3F99)
+val IndigoLight = Color(0xFF9A8FD4)
+val IndigoDeep = Color(0xFF2D2478)
+val IndigoPaleContainer = Color(0xFFE8E5F5)
 
-// Secondary Colors - Sacred Earth tones
-val TempleStone = Color(0xFF5D4037)
-val AncientParchment = Color(0xFFFFF8E7)
-val SacredClay = Color(0xFF8D6E63)
+// ═══════════════════════════════════════════════════════════════
+// Secondary — Sage Green (healing, balance)
+// ═══════════════════════════════════════════════════════════════
+val SageGreen = Color(0xFF6BA89F)
+val SageDark = Color(0xFF4D8A80)
+val SageLight = Color(0xFFA7D4CC)
+val SagePaleContainer = Color(0xFFDAF0EC)
 
-// Accent Colors - Lotus & Peacock inspired
-val LotusPink = Color(0xFFE91E63)
-val LotusDeep = Color(0xFFC2185B)
-val PeacockTeal = Color(0xFF00897B)
-val PeacockBlue = Color(0xFF0288D1)
+// ═══════════════════════════════════════════════════════════════
+// Tertiary — Saffron Gold (tradition, warmth, divinity)
+// ═══════════════════════════════════════════════════════════════
+val SaffronGold = Color(0xFFD4A574)
+val SaffronLight = Color(0xFFF5D8A3)
+val SaffronDeep = Color(0xFF8B7355)
+val SaffronPaleContainer = Color(0xFFFFF3E0)
 
-// Neutral Colors
-val DarkCharcoal = Color(0xFF1A1A1A)
-val WarmWhite = Color(0xFFFFFBF5)
-val SoftCream = Color(0xFFFAF8F5)
-val MutedGold = Color(0xFFBFA76A)
+// ═══════════════════════════════════════════════════════════════
+// Neutrals
+// ═══════════════════════════════════════════════════════════════
+val SurfaceDark = Color(0xFF0A0A0A)       // App background dark
+val SurfaceDarkElevated = Color(0xFF141414) // Cards dark
+val SurfaceDarkVariant = Color(0xFF1E1E1E)  // Elevated dark
+val OnSurfaceDark = Color(0xFFF0F0F0)
+val OnSurfaceDarkMuted = Color(0xFF888888)
+val OutlineDark = Color(0xFF2A2A2A)
 
-// Spiritual accent
-val DivinePurple = Color(0xFF5E35B1)
-val TwilightIndigo = Color(0xFF303F9F)
+val SurfaceLight = Color(0xFFFCFCFA)       // App background light
+val SurfaceLightElevated = Color(0xFFFFFFFF) // Cards light
+val SurfaceLightVariant = Color(0xFFF0EDE6)  // Elevated light
+val OnSurfaceLight = Color(0xFF1A1A1A)
+val OnSurfaceLightMuted = Color(0xFF6B6B6B)
+val OutlineLight = Color(0xFFE0DDD5)
+
+// ═══════════════════════════════════════════════════════════════
+// Accent / Emotion Colors
+// ═══════════════════════════════════════════════════════════════
+val LotusRose = Color(0xFFD47A99)          // Emotion accent
+val TempleStone = Color(0xFF5D4037)        // Heritage accent
+
+// ═══════════════════════════════════════════════════════════════
+// Color Schemes
+// ═══════════════════════════════════════════════════════════════
 
 private val DarkColorScheme = darkColorScheme(
-    primary = SaffronGold,
-    onPrimary = DarkCharcoal,
-    primaryContainer = Color(0xFF3D2A00),
-    onPrimaryContainer = Color(0xFFFFE082),
+    primary = IndigoLight,
+    onPrimary = Color(0xFF1A1A1A),
+    primaryContainer = Color(0xFF1F1A3D),
+    onPrimaryContainer = Color(0xFFD0CCE8),
     
-    secondary = PeacockTeal,
-    onSecondary = Color.White,
-    secondaryContainer = Color(0xFF004D40),
-    onSecondaryContainer = Color(0xFFA7FFEB),
+    secondary = SageGreen,
+    onSecondary = Color(0xFF1A1A1A),
+    secondaryContainer = Color(0xFF1A3D38),
+    onSecondaryContainer = SageLight,
     
-    tertiary = LotusPink,
-    onTertiary = Color.White,
-    tertiaryContainer = Color(0xFF5D0033),
-    onTertiaryContainer = Color(0xFFFFD9E3),
+    tertiary = SaffronGold,
+    onTertiary = Color(0xFF1A1A1A),
+    tertiaryContainer = Color(0xFF3D2E1A),
+    onTertiaryContainer = SaffronLight,
     
-    background = Color(0xFF121212),
-    onBackground = Color(0xFFE8E8E8),
+    background = SurfaceDark,
+    onBackground = OnSurfaceDark,
     
-    surface = Color(0xFF1E1E1E),
-    onSurface = Color(0xFFE8E8E8),
-    surfaceVariant = Color(0xFF2D2D2D),
-    onSurfaceVariant = Color(0xFFCACACA),
+    surface = SurfaceDarkElevated,
+    onSurface = OnSurfaceDark,
+    surfaceVariant = SurfaceDarkVariant,
+    onSurfaceVariant = OnSurfaceDarkMuted,
     
     error = Color(0xFFCF6679),
     onError = Color.Black,
     
-    outline = Color(0xFF505050),
-    outlineVariant = Color(0xFF383838)
+    outline = OutlineDark,
+    outlineVariant = Color(0xFF1E1E1E)
 )
 
 private val LightColorScheme = lightColorScheme(
-    primary = TempleStone,
+    primary = IndigoPrimary,
     onPrimary = Color.White,
-    primaryContainer = Color(0xFFFFE0B2),
-    onPrimaryContainer = Color(0xFF3E2723),
+    primaryContainer = IndigoPaleContainer,
+    onPrimaryContainer = IndigoDeep,
     
-    secondary = PeacockTeal,
+    secondary = SageDark,
     onSecondary = Color.White,
-    secondaryContainer = Color(0xFFB2DFDB),
-    onSecondaryContainer = Color(0xFF00251A),
+    secondaryContainer = SagePaleContainer,
+    onSecondaryContainer = Color(0xFF1A3D38),
     
-    tertiary = DivinePurple,
+    tertiary = SaffronDeep,
     onTertiary = Color.White,
-    tertiaryContainer = Color(0xFFEDE7F6),
-    onTertiaryContainer = Color(0xFF311B92),
+    tertiaryContainer = SaffronPaleContainer,
+    onTertiaryContainer = Color(0xFF3E2723),
     
-    background = WarmWhite,
-    onBackground = Color(0xFF1C1917),
+    background = SurfaceLight,
+    onBackground = OnSurfaceLight,
     
-    surface = SoftCream,
-    onSurface = Color(0xFF1C1917),
-    surfaceVariant = Color(0xFFF5F0E6),
-    onSurfaceVariant = Color(0xFF49454F),
+    surface = SurfaceLightElevated,
+    onSurface = OnSurfaceLight,
+    surfaceVariant = SurfaceLightVariant,
+    onSurfaceVariant = OnSurfaceLightMuted,
     
     error = Color(0xFFB3261E),
     onError = Color.White,
     
-    outline = Color(0xFFBFB5A0),
-    outlineVariant = Color(0xFFD9D0C0)
+    outline = OutlineLight,
+    outlineVariant = Color(0xFFE8E4DB)
 )
 
+/**
+ * Main app theme composable.
+ * 
+ * @param darkTheme Whether to use dark theme. Controlled by user preference, not system.
+ */
 @Composable
 fun GitaTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    // Disable dynamic color for consistent branding
-    dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {
     val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
@@ -124,9 +154,11 @@ fun GitaTheme(
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
-            // Use surface color for status bar (more subtle)
-            window.statusBarColor = colorScheme.surface.toArgb()
+            // Immersive: status bar matches background
+            window.statusBarColor = colorScheme.background.toArgb()
+            window.navigationBarColor = colorScheme.background.toArgb()
             WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !darkTheme
+            WindowCompat.getInsetsController(window, view).isAppearanceLightNavigationBars = !darkTheme
         }
     }
 
@@ -138,28 +170,41 @@ fun GitaTheme(
 }
 
 /**
- * Extension colors for emotion-based theming
+ * Extended color tokens for spiritual UI elements.
+ * Use these for custom components that go beyond Material 3 slots.
  */
 object GitaColors {
-    // Emotion gradients - starting colors
-    val anxietyGradientStart = Color(0xFFEDE7F6)
-    val griefGradientStart = Color(0xFFE8EAF6)
-    val angerGradientStart = Color(0xFFFFEBEE)
-    val attachmentGradientStart = Color(0xFFFCE4EC)
-    val burnoutGradientStart = Color(0xFFECEFF1)
+    // Emotion gradients — dark mode
+    val emotionGradientDark = listOf(Color(0xFF1A1A2E), Color(0xFF16213E))
+    val emotionGradientLight = listOf(Color(0xFFF0EDE6), Color(0xFFE8E5F5))
     
-    // Warm accents
-    val warmGold = SaffronGold
-    val sacredRed = Color(0xFFC62828)
-    val peacefulBlue = PeacockBlue
-    val forestGreen = Color(0xFF2E7D32)
-    val wisdomPurple = DivinePurple
+    // Glow colors per emotion
+    val anxietyGlow = Color(0xFF7E57C2)
+    val griefGlow = Color(0xFF5C6BC0)
+    val angerGlow = Color(0xFFEF5350)
+    val attachmentGlow = Color(0xFFEC407A)
+    val burnoutGlow = Color(0xFF78909C)
+    val confusionGlow = Color(0xFF66BB6A)
+    val fearGlow = Color(0xFFFFCA28)
+    val hopelessnessGlow = Color(0xFF8D6E63)
     
     // Card backgrounds
-    val cardElevated = Color(0xFFFFFDF8)
-    val cardSubtle = Color(0xFFF9F6F0)
+    val cardDark = SurfaceDarkElevated
+    val cardLight = SurfaceLightElevated
     
-    // Sanskrit/Devanagari text
-    val sanskritText = Color(0xFF5D4037)
-    val transliterationText = Color(0xFF795548)
+    // Sanskrit text
+    val sanskritDark = SaffronGold
+    val sanskritLight = TempleStone
+    
+    // Transliteration
+    val transliterationDark = Color(0xFF888888)
+    val transliterationLight = Color(0xFF795548)
+    
+    // Gradient for primary buttons
+    val buttonGradientDark = listOf(IndigoLight, IndigoPrimary)
+    val buttonGradientLight = listOf(IndigoPrimary, IndigoDeep)
+    
+    // Divider
+    val dividerDark = OutlineDark
+    val dividerLight = OutlineLight
 }

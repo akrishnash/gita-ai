@@ -1,16 +1,21 @@
 package com.gita.app.ui
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.*
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.outlined.DarkMode
+import androidx.compose.material.icons.outlined.LightMode
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -27,8 +32,16 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gita.app.data.VerseEntry
+import com.gita.app.ui.theme.*
 import com.gita.app.viewmodel.StoryCard
+import kotlinx.coroutines.delay
 
+/**
+ * Response screen — displays the matched Gita verse with therapeutic context.
+ * 
+ * Design: Clean card-based layout with staggered fade-in animations,
+ * Sanskrit verse in serif font, and subtle spiritual accents.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ResponseScreen(
@@ -37,7 +50,7 @@ fun ResponseScreen(
     reflection: String,
     anchorLine: String,
     story: StoryCard? = null,
-    language: String = "en", // "en" or "hi"
+    language: String = "en",
     isDarkMode: Boolean = true,
     onLanguageChange: (String) -> Unit = {},
     onDarkModeChange: (Boolean) -> Unit = {},
@@ -45,51 +58,67 @@ fun ResponseScreen(
     onBack: () -> Unit,
     debugInfo: com.gita.app.kotlinmodel.MatchDebugInfo? = null
 ) {
-    // Local state for toggles
     var currentLanguage by remember { mutableStateOf(language) }
     var currentDarkMode by remember { mutableStateOf(isDarkMode) }
     
-    // Minimal spiritual color palette
-    val bgPrimary = if (currentDarkMode) Color(0xFF0A0A0A) else Color(0xFFFCFCFA)
-    val bgCard = if (currentDarkMode) Color(0xFF141414) else Color(0xFFFFFFFF)
-    val textPrimary = if (currentDarkMode) Color(0xFFF0F0F0) else Color(0xFF1A1A1A)
+    // Theme-aware colors
+    val bgPrimary = if (currentDarkMode) SurfaceDark else SurfaceLight
+    val bgCard = if (currentDarkMode) SurfaceDarkElevated else SurfaceLightElevated
+    val textPrimary = if (currentDarkMode) OnSurfaceDark else OnSurfaceLight
     val textSecondary = if (currentDarkMode) Color(0xFF9A9A9A) else Color(0xFF5A5A5A)
-    val textMuted = if (currentDarkMode) Color(0xFF5A5A5A) else Color(0xFFAAAAAA)
-    val accent = if (currentDarkMode) Color(0xFFD4AF37) else Color(0xFF8B7355)  // Gold/Earth
-    val divider = if (currentDarkMode) Color(0xFF2A2A2A) else Color(0xFFE5E5E0)
+    val textMuted = if (currentDarkMode) OnSurfaceDarkMuted else OnSurfaceLightMuted
+    val accent = if (currentDarkMode) IndigoLight else IndigoPrimary
+    val gold = if (currentDarkMode) SaffronGold else SaffronDeep
+    val divider = if (currentDarkMode) OutlineDark else OutlineLight
+    val sanskritBg = if (currentDarkMode) Color(0xFF141210) else Color(0xFFF8F5F0)
     
-    // Get therapeutic response - prefer LLM bridge if available
+    // Therapeutic response
     val bridge = debugInfo?.bridge
     val therapeuticEn = bridge ?: debugInfo?.emotionComfortingMessage ?: getEmpatheticResponse(debugInfo?.detectedEmotion)
     val therapeuticHi = debugInfo?.hindiResponse ?: getHindiEmpatheticResponse(debugInfo?.detectedEmotion)
     val therapeutic = if (currentLanguage == "hi") therapeuticHi else therapeuticEn
     
+    // Staggered animation controls
+    var section1Visible by remember { mutableStateOf(false) }
+    var section2Visible by remember { mutableStateOf(false) }
+    var section3Visible by remember { mutableStateOf(false) }
+    var section4Visible by remember { mutableStateOf(false) }
+    var section5Visible by remember { mutableStateOf(false) }
+    
+    LaunchedEffect(Unit) {
+        delay(100); section1Visible = true
+        delay(150); section2Visible = true
+        delay(150); section3Visible = true
+        delay(150); section4Visible = true
+        delay(150); section5Visible = true
+    }
+    
     Scaffold(
         containerColor = bgPrimary,
         topBar = {
-            // Minimal Top Bar with toggles
             Surface(
                 modifier = Modifier.fillMaxWidth(),
-                color = bgCard,
-                shadowElevation = 1.dp
+                color = bgPrimary,
+                shadowElevation = 0.dp
             ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                        .padding(horizontal = 8.dp, vertical = 8.dp)
+                        .statusBarsPadding(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Home button
+                    // Back button
                     IconButton(
                         onClick = onBack,
                         modifier = Modifier.size(40.dp)
                     ) {
                         Icon(
-                            Icons.Default.Home,
-                            contentDescription = "Home",
-                            tint = textSecondary,
-                            modifier = Modifier.size(22.dp)
+                            Icons.AutoMirrored.Outlined.ArrowBack,
+                            contentDescription = "Back",
+                            tint = textMuted,
+                            modifier = Modifier.size(20.dp)
                         )
                     }
                     
@@ -97,82 +126,62 @@ fun ResponseScreen(
                     Text(
                         text = "॥ गीता ॥",
                         style = MaterialTheme.typography.titleMedium.copy(
-                            fontWeight = FontWeight.Normal,
-                            letterSpacing = 2.sp
+                            fontWeight = FontWeight.Light,
+                            letterSpacing = 3.sp,
+                            fontSize = 14.sp
                         ),
-                        color = accent
+                        color = gold
                     )
                     
-                    // Toggles Row
+                    // Toggles
                     Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // Language Toggle: EN / HI
+                        // Language toggle
                         Row(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(20.dp))
                                 .background(if (currentDarkMode) Color(0xFF1A1A1A) else Color(0xFFF0F0EB))
-                                .padding(2.dp),
-                            horizontalArrangement = Arrangement.Center
+                                .padding(2.dp)
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(18.dp))
-                                    .background(
-                                        if (currentLanguage == "en") accent.copy(alpha = 0.2f)
-                                        else Color.Transparent
+                            listOf("en" to "EN", "hi" to "हि").forEach { (code, label) ->
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(18.dp))
+                                        .background(
+                                            if (currentLanguage == code) accent.copy(alpha = 0.15f)
+                                            else Color.Transparent
+                                        )
+                                        .clickable {
+                                            currentLanguage = code
+                                            onLanguageChange(code)
+                                        }
+                                        .padding(horizontal = 10.dp, vertical = 5.dp)
+                                ) {
+                                    Text(
+                                        label,
+                                        fontSize = 11.sp,
+                                        fontWeight = if (currentLanguage == code) FontWeight.SemiBold else FontWeight.Normal,
+                                        color = if (currentLanguage == code) accent else textMuted
                                     )
-                                    .clickable { 
-                                        currentLanguage = "en"
-                                        onLanguageChange("en")
-                                    }
-                                    .padding(horizontal = 12.dp, vertical = 6.dp)
-                            ) {
-                                Text(
-                                    "EN",
-                                    fontSize = 11.sp,
-                                    fontWeight = if (currentLanguage == "en") FontWeight.SemiBold else FontWeight.Normal,
-                                    color = if (currentLanguage == "en") accent else textMuted
-                                )
-                            }
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(18.dp))
-                                    .background(
-                                        if (currentLanguage == "hi") accent.copy(alpha = 0.2f)
-                                        else Color.Transparent
-                                    )
-                                    .clickable { 
-                                        currentLanguage = "hi"
-                                        onLanguageChange("hi")
-                                    }
-                                    .padding(horizontal = 12.dp, vertical = 6.dp)
-                            ) {
-                                Text(
-                                    "हि",
-                                    fontSize = 11.sp,
-                                    fontWeight = if (currentLanguage == "hi") FontWeight.SemiBold else FontWeight.Normal,
-                                    color = if (currentLanguage == "hi") accent else textMuted
-                                )
+                                }
                             }
                         }
                         
-                        // Dark/Light mode toggle
-                        Box(
-                            modifier = Modifier
-                                .size(32.dp)
-                                .clip(CircleShape)
-                                .background(if (currentDarkMode) Color(0xFF1A1A1A) else Color(0xFFF0F0EB))
-                                .clickable { 
-                                    currentDarkMode = !currentDarkMode
-                                    onDarkModeChange(currentDarkMode)
-                                },
-                            contentAlignment = Alignment.Center
+                        // Theme toggle
+                        IconButton(
+                            onClick = {
+                                currentDarkMode = !currentDarkMode
+                                onDarkModeChange(currentDarkMode)
+                            },
+                            modifier = Modifier.size(32.dp)
                         ) {
-                            Text(
-                                text = if (currentDarkMode) "☀" else "🌙",
-                                fontSize = 14.sp
+                            Icon(
+                                if (currentDarkMode) Icons.Outlined.LightMode else Icons.Outlined.DarkMode,
+                                contentDescription = "Toggle theme",
+                                tint = textMuted,
+                                modifier = Modifier.size(16.dp)
                             )
                         }
                     }
@@ -185,235 +194,354 @@ fun ResponseScreen(
                 .fillMaxSize()
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp, vertical = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(24.dp)
+                .padding(horizontal = 20.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
-            // User's Question - subtle
-            if (userQuestion.isNotBlank()) {
-                Text(
-                    text = "\"$userQuestion\"",
-                    style = MaterialTheme.typography.bodyMedium.copy(
-                        fontStyle = FontStyle.Italic,
-                        lineHeight = 22.sp
-                    ),
-                    color = textMuted,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-            
-            // Therapeutic Response - the heart of the app
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = bgCard),
-                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+            // ═══════════════════════════════════════════════════════
+            // Section 1: User's question (subtle echo)
+            // ═══════════════════════════════════════════════════════
+            AnimatedVisibility(
+                visible = section1Visible,
+                enter = fadeIn(tween(400)) + slideInVertically(tween(400)) { it / 3 }
             ) {
-                Column(
-                    modifier = Modifier.padding(24.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    // Om symbol as accent
+                if (userQuestion.isNotBlank()) {
                     Text(
-                        text = "ॐ",
-                        fontSize = 28.sp,
-                        color = accent.copy(alpha = 0.6f),
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    
-                    // Therapeutic message
-                    Text(
-                        text = therapeutic,
-                        style = MaterialTheme.typography.bodyLarge.copy(
-                            lineHeight = 28.sp,
-                            letterSpacing = 0.3.sp
+                        text = "\"$userQuestion\"",
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            fontStyle = FontStyle.Italic,
+                            lineHeight = 22.sp
                         ),
-                        color = textPrimary,
-                        textAlign = TextAlign.Center
+                        color = textMuted.copy(alpha = 0.7f),
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp)
                     )
                 }
             }
             
-            // Verse Reference - minimal
-            Text(
-                text = if (currentLanguage == "hi") 
-                    "अध्याय ${verse.chapter}, श्लोक ${verse.verse}"
-                else 
-                    "Chapter ${verse.chapter}, Verse ${verse.verse}",
-                style = MaterialTheme.typography.labelMedium.copy(
-                    letterSpacing = 1.sp
-                ),
-                color = accent,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth()
-            )
-            
-            // Sanskrit verse - elegant
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = if (currentDarkMode) Color(0xFF1A1612) else Color(0xFFFAF8F5)
-                ),
-                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+            // ═══════════════════════════════════════════════════════
+            // Section 2: Therapeutic response card
+            // ═══════════════════════════════════════════════════════
+            AnimatedVisibility(
+                visible = section2Visible,
+                enter = fadeIn(tween(500)) + slideInVertically(tween(500)) { it / 3 }
             ) {
-                Column(
-                    modifier = Modifier.padding(24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(18.dp),
+                    colors = CardDefaults.cardColors(containerColor = bgCard),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                 ) {
-                    Text(
-                        text = verse.sanskrit,
-                        style = MaterialTheme.typography.titleMedium.copy(
-                            fontFamily = FontFamily.Serif,
-                            lineHeight = 32.sp
-                        ),
-                        color = accent,
-                        textAlign = TextAlign.Center
-                    )
-                    
-                    // Transliteration
-                    if (verse.transliteration?.isNotBlank() == true) {
-                        Divider(
-                            modifier = Modifier
-                                .width(60.dp)
-                                .padding(vertical = 8.dp),
-                            color = divider
-                        )
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .border(
+                                width = 1.dp,
+                                color = divider,
+                                shape = RoundedCornerShape(18.dp)
+                            )
+                            .padding(24.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        // Emotion emoji if available
+                        debugInfo?.emotionEmoji?.let { emoji ->
+                            Text(
+                                text = emoji,
+                                fontSize = 32.sp
+                            )
+                        }
+                        
+                        // Therapeutic message
                         Text(
-                            text = verse.transliteration,
-                            style = MaterialTheme.typography.bodySmall.copy(
-                                fontStyle = FontStyle.Italic,
-                                lineHeight = 22.sp
+                            text = therapeutic,
+                            style = MaterialTheme.typography.bodyLarge.copy(
+                                lineHeight = 28.sp,
+                                letterSpacing = 0.3.sp
                             ),
-                            color = textMuted,
+                            color = textPrimary,
                             textAlign = TextAlign.Center
                         )
                     }
                 }
             }
             
-            // Translation
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.cardColors(containerColor = bgCard),
-                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+            // ═══════════════════════════════════════════════════════
+            // Section 3: Verse reference + Sanskrit
+            // ═══════════════════════════════════════════════════════
+            AnimatedVisibility(
+                visible = section3Visible,
+                enter = fadeIn(tween(500)) + slideInVertically(tween(500)) { it / 3 }
             ) {
-                Column(
-                    modifier = Modifier.padding(24.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    // Verse reference
                     Text(
-                        text = if (currentLanguage == "hi") "अनुवाद" else "Translation",
+                        text = if (currentLanguage == "hi")
+                            "अध्याय ${verse.chapter}, श्लोक ${verse.verse}"
+                        else
+                            "CHAPTER ${verse.chapter}, VERSE ${verse.verse}",
                         style = MaterialTheme.typography.labelSmall.copy(
-                            letterSpacing = 1.5.sp
+                            letterSpacing = 2.sp,
+                            fontWeight = FontWeight.Medium
                         ),
-                        color = textMuted
+                        color = accent,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
                     )
                     
-                    Text(
-                        text = if (currentLanguage == "hi") 
-                            getHindiTranslation(verse) 
-                        else 
-                            verse.translation,
-                        style = MaterialTheme.typography.bodyLarge.copy(
-                            lineHeight = 28.sp
-                        ),
-                        color = textPrimary
-                    )
+                    // Sanskrit verse card
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = sanskritBg),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(24.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            Text(
+                                text = verse.sanskrit,
+                                style = MaterialTheme.typography.titleMedium.copy(
+                                    fontFamily = FontFamily.Serif,
+                                    lineHeight = 34.sp,
+                                    fontSize = 18.sp
+                                ),
+                                color = gold,
+                                textAlign = TextAlign.Center
+                            )
+                            
+                            if (verse.transliteration.isNotBlank()) {
+                                Divider(
+                                    modifier = Modifier.width(40.dp),
+                                    color = divider
+                                )
+                                Text(
+                                    text = verse.transliteration,
+                                    style = MaterialTheme.typography.bodySmall.copy(
+                                        fontStyle = FontStyle.Italic,
+                                        lineHeight = 22.sp
+                                    ),
+                                    color = textMuted,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                        }
+                    }
                 }
             }
             
-            // Wisdom / Reflection
-            if (reflection.isNotBlank()) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 8.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text(
-                        text = "· · ·",
-                        color = textMuted,
-                        letterSpacing = 8.sp
-                    )
-                    Text(
-                        text = if (currentLanguage == "hi") "विचार" else "Reflection",
-                        style = MaterialTheme.typography.labelSmall.copy(
-                            letterSpacing = 2.sp
-                        ),
-                        color = accent
-                    )
-                    Text(
-                        text = reflection,
-                        style = MaterialTheme.typography.bodyMedium.copy(
-                            lineHeight = 26.sp,
-                            fontStyle = FontStyle.Italic
-                        ),
-                        color = textSecondary,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.padding(horizontal = 16.dp)
-                    )
-                }
-            }
-            
-            Spacer(modifier = Modifier.height(8.dp))
-            
-            // Bottom Actions - minimal
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            // ═══════════════════════════════════════════════════════
+            // Section 4: Translation
+            // ═══════════════════════════════════════════════════════
+            AnimatedVisibility(
+                visible = section4Visible,
+                enter = fadeIn(tween(500)) + slideInVertically(tween(500)) { it / 3 }
             ) {
-                // Another verse button
-                OutlinedButton(
-                    onClick = onAnotherPerspective,
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(12.dp),
-                    border = ButtonDefaults.outlinedButtonBorder.copy(
-                        brush = Brush.linearGradient(listOf(accent.copy(alpha = 0.5f), accent.copy(alpha = 0.3f)))
-                    ),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = textSecondary
-                    )
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = bgCard),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                 ) {
-                    Icon(
-                        Icons.Outlined.Refresh,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        if (currentLanguage == "hi") "अन्य श्लोक" else "Another Verse",
-                        fontSize = 14.sp
-                    )
-                }
-                
-                // New question button
-                Button(
-                    onClick = onBack,
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = accent,
-                        contentColor = Color.White
-                    )
-                ) {
-                    Text(
-                        if (currentLanguage == "hi") "नया प्रश्न" else "New Question",
-                        fontSize = 14.sp
-                    )
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .border(
+                                width = 1.dp,
+                                color = divider,
+                                shape = RoundedCornerShape(16.dp)
+                            )
+                            .padding(24.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Text(
+                            text = if (currentLanguage == "hi") "अनुवाद" else "TRANSLATION",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                letterSpacing = 2.sp,
+                                fontWeight = FontWeight.Medium
+                            ),
+                            color = textMuted
+                        )
+                        
+                        Text(
+                            text = if (currentLanguage == "hi")
+                                getHindiTranslation(verse)
+                            else
+                                verse.translation,
+                            style = MaterialTheme.typography.bodyLarge.copy(
+                                lineHeight = 28.sp
+                            ),
+                            color = textPrimary
+                        )
+                    }
                 }
             }
             
-            Spacer(modifier = Modifier.height(24.dp))
+            // ═══════════════════════════════════════════════════════
+            // Section 5: Reflection + Actions
+            // ═══════════════════════════════════════════════════════
+            AnimatedVisibility(
+                visible = section5Visible,
+                enter = fadeIn(tween(500)) + slideInVertically(tween(500)) { it / 3 }
+            ) {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(20.dp)
+                ) {
+                    // Reflection
+                    if (reflection.isNotBlank()) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text(
+                                text = "· · ·",
+                                color = textMuted.copy(alpha = 0.4f),
+                                letterSpacing = 8.sp,
+                                fontSize = 12.sp
+                            )
+                            Text(
+                                text = if (currentLanguage == "hi") "विचार" else "REFLECTION",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    letterSpacing = 2.sp,
+                                    fontWeight = FontWeight.Medium
+                                ),
+                                color = accent
+                            )
+                            Text(
+                                text = reflection,
+                                style = MaterialTheme.typography.bodyMedium.copy(
+                                    lineHeight = 26.sp,
+                                    fontStyle = FontStyle.Italic
+                                ),
+                                color = textSecondary,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.padding(horizontal = 12.dp)
+                            )
+                        }
+                    }
+                    
+                    // Story card (if available)
+                    story?.let { storyCard ->
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = bgCard),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .border(1.dp, divider, RoundedCornerShape(16.dp))
+                                    .padding(24.dp),
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Text(
+                                    text = if (currentLanguage == "hi") "कथा" else "STORY",
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        letterSpacing = 2.sp,
+                                        fontWeight = FontWeight.Medium
+                                    ),
+                                    color = gold
+                                )
+                                Text(
+                                    text = storyCard.title,
+                                    style = MaterialTheme.typography.titleMedium.copy(
+                                        fontFamily = FontFamily.Serif
+                                    ),
+                                    color = textPrimary
+                                )
+                                Text(
+                                    text = storyCard.text,
+                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                        lineHeight = 26.sp
+                                    ),
+                                    color = textSecondary
+                                )
+                                storyCard.moralLesson?.let { moral ->
+                                    Divider(color = divider)
+                                    Text(
+                                        text = moral,
+                                        style = MaterialTheme.typography.bodySmall.copy(
+                                            fontStyle = FontStyle.Italic
+                                        ),
+                                        color = textMuted
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    // Action buttons
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = onAnotherPerspective,
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(48.dp),
+                            shape = RoundedCornerShape(14.dp),
+                            border = ButtonDefaults.outlinedButtonBorder.copy(
+                                brush = Brush.linearGradient(
+                                    listOf(divider, divider)
+                                )
+                            ),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = textSecondary
+                            )
+                        ) {
+                            Icon(
+                                Icons.Outlined.Refresh,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                if (currentLanguage == "hi") "अन्य श्लोक" else "Another Verse",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                        
+                        Button(
+                            onClick = onBack,
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(48.dp),
+                            shape = RoundedCornerShape(14.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = accent,
+                                contentColor = if (currentDarkMode) Color(0xFF1A1A1A) else Color.White
+                            )
+                        ) {
+                            Text(
+                                if (currentLanguage == "hi") "नया प्रश्न" else "New Question",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
+                    
+                    Spacer(modifier = Modifier.height(32.dp))
+                }
+            }
         }
     }
 }
 
-// Get therapeutic response based on detected emotion
+// ═══════════════════════════════════════════════════════════════
+// Therapeutic response functions
+// ═══════════════════════════════════════════════════════════════
+
 private fun getEmpatheticResponse(emotion: String?): String {
     return when (emotion?.lowercase()) {
         "anxiety" -> "I understand how overwhelming anxiety can feel. Take a deep breath with me. You're not alone in this, and these feelings will pass. Here's what Krishna shared about finding inner peace..."
@@ -447,7 +575,5 @@ private fun getHindiEmpatheticResponse(emotion: String?): String {
 }
 
 private fun getHindiTranslation(verse: VerseEntry): String {
-    // For now, return English translation with a note
-    // In production, you'd have actual Hindi translations in your data
     return verse.translation
 }

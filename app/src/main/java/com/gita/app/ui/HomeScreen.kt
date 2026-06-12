@@ -1,285 +1,399 @@
 package com.gita.app.ui
 
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.icons.automirrored.outlined.Send
+import androidx.compose.material.icons.outlined.DarkMode
+import androidx.compose.material.icons.outlined.History
+import androidx.compose.material.icons.outlined.LightMode
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.gita.app.ui.theme.*
+import kotlinx.coroutines.delay
 
+/**
+ * Home screen — minimalist spiritual input interface.
+ * 
+ * Design: Dark immersive background with breathing Om symbol,
+ * a prominent text input card, and subtle floating particles.
+ */
 @Composable
 fun HomeScreen(
-    isDarkMode: Boolean = true,
-    language: String = "en",
-    onLanguageChange: (String) -> Unit = {},
-    onDarkModeChange: (Boolean) -> Unit = {},
+    isDarkMode: Boolean,
+    language: String,
+    onLanguageChange: (String) -> Unit,
+    onDarkModeChange: (Boolean) -> Unit,
     onSubmit: (String) -> Unit
 ) {
-    var userInput by remember { mutableStateOf("") }
-    var currentDarkMode by remember { mutableStateOf(isDarkMode) }
-    var currentLanguage by remember { mutableStateOf(language) }
-    val keyboardController = LocalSoftwareKeyboardController.current
+    var inputText by remember { mutableStateOf("") }
+    val focusRequester = remember { FocusRequester() }
     
-    // Minimal spiritual palette
-    val bgPrimary = if (currentDarkMode) Color(0xFF0A0A0A) else Color(0xFFFCFCFA)
-    val cardBg = if (currentDarkMode) Color(0xFF141414) else Color(0xFFFFFFFF)
-    val textPrimary = if (currentDarkMode) Color(0xFFF0F0F0) else Color(0xFF1A1A1A)
-    val textSecondary = if (currentDarkMode) Color(0xFF9A9A9A) else Color(0xFF5A5A5A)
-    val textMuted = if (currentDarkMode) Color(0xFF5A5A5A) else Color(0xFFAAAAAA)
-    val accent = if (currentDarkMode) Color(0xFFD4AF37) else Color(0xFF8B7355)
-    val inputBg = if (currentDarkMode) Color(0xFF1A1A1A) else Color(0xFFF5F5F0)
+    // Theme-aware colors
+    val bgColor = if (isDarkMode) SurfaceDark else SurfaceLight
+    val cardBg = if (isDarkMode) SurfaceDarkElevated else SurfaceLightElevated
+    val textPrimary = if (isDarkMode) OnSurfaceDark else OnSurfaceLight
+    val textMuted = if (isDarkMode) OnSurfaceDarkMuted else OnSurfaceLightMuted
+    val accent = if (isDarkMode) IndigoLight else IndigoPrimary
+    val gold = if (isDarkMode) SaffronGold else SaffronDeep
+    val inputBorder = if (isDarkMode) OutlineDark else OutlineLight
+    
+    // Breathing Om animation
+    val infiniteTransition = rememberInfiniteTransition(label = "home")
+    val breatheScale by infiniteTransition.animateFloat(
+        initialValue = 0.95f,
+        targetValue = 1.05f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(3000, easing = EaseInOutSine),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "breathe"
+    )
+    
+    val omAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.06f,
+        targetValue = 0.14f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(4000, easing = EaseInOutSine),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "omAlpha"
+    )
+    
+    // Subtle particle float
+    val particleY by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 12f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(5000, easing = EaseInOutSine),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "particle"
+    )
+    
+    // Title fade-in
+    var contentVisible by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        delay(100)
+        contentVisible = true
+    }
+    val contentAlpha by animateFloatAsState(
+        targetValue = if (contentVisible) 1f else 0f,
+        animationSpec = tween(600, easing = EaseOut),
+        label = "contentFade"
+    )
+    
+    // Placeholder rotation
+    val placeholders = listOf(
+        "What's weighing on your mind?",
+        "Share what troubles your heart...",
+        "Ask Krishna for guidance...",
+        "What keeps you awake at night?",
+        "Describe your inner conflict..."
+    )
+    var placeholderIndex by remember { mutableStateOf(0) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(4000)
+            placeholderIndex = (placeholderIndex + 1) % placeholders.size
+        }
+    }
     
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(bgPrimary)
+            .background(bgColor)
     ) {
+        // Background Om watermark
+        Box(
+            modifier = Modifier
+                .align(Alignment.Center)
+                .offset(y = (-80).dp)
+        ) {
+            Text(
+                text = "ॐ",
+                fontSize = 240.sp,
+                fontWeight = FontWeight.Thin,
+                fontFamily = FontFamily.Serif,
+                color = gold.copy(alpha = omAlpha),
+                modifier = Modifier.scale(breatheScale)
+            )
+        }
+        
+        // Floating decorative particles
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .offset(x = (-40).dp, y = (120 + particleY).dp)
+                .alpha(0.08f)
+        ) {
+            Text("✦", fontSize = 20.sp, color = accent)
+        }
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .offset(x = 50.dp, y = (200 - particleY).dp)
+                .alpha(0.06f)
+        ) {
+            Text("✧", fontSize = 28.sp, color = gold)
+        }
+        
+        // Main content
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+                .padding(horizontal = 24.dp)
+                .alpha(contentAlpha),
+            verticalArrangement = Arrangement.SpaceBetween
         ) {
-            // Top bar with toggles
+            // Top bar with actions
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 40.dp),
-                horizontalArrangement = Arrangement.End,
+                    .padding(top = 48.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Language Toggle
-                Row(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(if (currentDarkMode) Color(0xFF1A1A1A) else Color(0xFFF0F0EB))
-                        .padding(2.dp),
-                    horizontalArrangement = Arrangement.Center
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(18.dp))
-                            .background(
-                                if (currentLanguage == "en") accent.copy(alpha = 0.2f)
-                                else Color.Transparent
-                            )
-                            .clickable { 
-                                currentLanguage = "en"
-                                onLanguageChange("en")
-                            }
-                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                // App title
+                Text(
+                    text = "GITA",
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontWeight = FontWeight.Light,
+                        letterSpacing = 6.sp,
+                        fontSize = 16.sp
+                    ),
+                    color = textMuted
+                )
+                
+                // Action buttons
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    // Language toggle
+                    TextButton(
+                        onClick = { onLanguageChange(if (language == "en") "hi" else "en") },
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
                     ) {
                         Text(
-                            "EN",
-                            fontSize = 11.sp,
-                            fontWeight = if (currentLanguage == "en") FontWeight.SemiBold else FontWeight.Normal,
-                            color = if (currentLanguage == "en") accent else textMuted
+                            text = if (language == "en") "EN" else "हि",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = textMuted,
+                            letterSpacing = 1.sp
                         )
                     }
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(18.dp))
-                            .background(
-                                if (currentLanguage == "hi") accent.copy(alpha = 0.2f)
-                                else Color.Transparent
-                            )
-                            .clickable { 
-                                currentLanguage = "hi"
-                                onLanguageChange("hi")
-                            }
-                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                    
+                    // Dark mode toggle
+                    IconButton(
+                        onClick = { onDarkModeChange(!isDarkMode) },
+                        modifier = Modifier.size(40.dp)
                     ) {
-                        Text(
-                            "हि",
-                            fontSize = 11.sp,
-                            fontWeight = if (currentLanguage == "hi") FontWeight.SemiBold else FontWeight.Normal,
-                            color = if (currentLanguage == "hi") accent else textMuted
+                        Icon(
+                            if (isDarkMode) Icons.Outlined.LightMode else Icons.Outlined.DarkMode,
+                            contentDescription = "Toggle theme",
+                            tint = textMuted,
+                            modifier = Modifier.size(20.dp)
                         )
                     }
                 }
+            }
+            
+            // Center content
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                verticalArrangement = Arrangement.Center,
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                // Greeting
+                Text(
+                    text = if (language == "hi") "नमस्ते" else "Welcome",
+                    style = MaterialTheme.typography.headlineLarge.copy(
+                        fontWeight = FontWeight.ExtraLight,
+                        letterSpacing = 2.sp,
+                        fontSize = 28.sp
+                    ),
+                    color = textPrimary
+                )
                 
-                Spacer(modifier = Modifier.width(8.dp))
+                Spacer(modifier = Modifier.height(8.dp))
                 
-                // Dark/Light toggle
+                Text(
+                    text = if (language == "hi") 
+                        "अपने मन की बात साझा करें" 
+                    else 
+                        "Share what's on your mind",
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        letterSpacing = 0.5.sp
+                    ),
+                    color = textMuted
+                )
+                
+                Spacer(modifier = Modifier.height(40.dp))
+                
+                // Input card
                 Box(
                     modifier = Modifier
-                        .size(32.dp)
-                        .clip(CircleShape)
-                        .background(if (currentDarkMode) Color(0xFF1A1A1A) else Color(0xFFF0F0EB))
-                        .clickable { 
-                            currentDarkMode = !currentDarkMode
-                            onDarkModeChange(currentDarkMode)
-                        },
-                    contentAlignment = Alignment.Center
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(cardBg)
+                        .border(
+                            width = 1.dp,
+                            color = inputBorder,
+                            shape = RoundedCornerShape(20.dp)
+                        )
+                        .padding(20.dp)
                 ) {
-                    Text(
-                        text = if (currentDarkMode) "☀" else "🌙",
-                        fontSize = 14.sp
-                    )
-                }
-            }
-            
-            Spacer(modifier = Modifier.weight(0.3f))
-            
-            // Om symbol - large, elegant
-            Text(
-                text = "ॐ",
-                fontSize = 72.sp,
-                color = accent.copy(alpha = 0.3f),
-                fontFamily = FontFamily.Serif
-            )
-            
-            Spacer(modifier = Modifier.height(24.dp))
-            
-            // Title
-            Text(
-                text = if (currentLanguage == "hi") "गीता" else "GITA",
-                style = MaterialTheme.typography.displaySmall.copy(
-                    fontWeight = FontWeight.ExtraLight,
-                    letterSpacing = 8.sp
-                ),
-                color = textPrimary
-            )
-            
-            Spacer(modifier = Modifier.height(8.dp))
-            
-            // Subtitle
-            Text(
-                text = if (currentLanguage == "hi") 
-                    "आपके जीवन के प्रश्नों का उत्तर" 
-                else 
-                    "Wisdom for life's questions",
-                style = MaterialTheme.typography.bodyMedium.copy(
-                    letterSpacing = 1.sp
-                ),
-                color = textMuted
-            )
-            
-            Spacer(modifier = Modifier.weight(0.3f))
-            
-            // Input Card
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = cardBg),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-            ) {
-                Column(
-                    modifier = Modifier.padding(20.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    Text(
-                        text = if (currentLanguage == "hi") 
-                            "अपने मन की बात कहें..." 
-                        else 
-                            "What's on your mind?",
-                        style = MaterialTheme.typography.labelMedium.copy(
-                            letterSpacing = 0.5.sp
-                        ),
-                        color = textMuted
-                    )
-                    
-                    OutlinedTextField(
-                        value = userInput,
-                        onValueChange = { userInput = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        placeholder = {
-                            Text(
-                                if (currentLanguage == "hi")
-                                    "मैं उदास महसूस कर रहा हूं..."
-                                else
-                                    "I'm feeling anxious about...",
-                                color = textMuted.copy(alpha = 0.5f)
-                            )
-                        },
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = textPrimary,
-                            unfocusedTextColor = textPrimary,
-                            focusedBorderColor = accent.copy(alpha = 0.5f),
-                            unfocusedBorderColor = Color.Transparent,
-                            focusedContainerColor = inputBg,
-                            unfocusedContainerColor = inputBg,
-                            cursorColor = accent
-                        ),
-                        shape = RoundedCornerShape(14.dp),
-                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                        keyboardActions = KeyboardActions(
-                            onDone = {
-                                if (userInput.isNotBlank()) {
-                                    keyboardController?.hide()
-                                    onSubmit(userInput)
+                    Column {
+                        BasicTextField(
+                            value = inputText,
+                            onValueChange = { inputText = it },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = 100.dp, max = 200.dp)
+                                .focusRequester(focusRequester),
+                            textStyle = TextStyle(
+                                color = textPrimary,
+                                fontSize = 16.sp,
+                                lineHeight = 26.sp,
+                                fontWeight = FontWeight.Normal
+                            ),
+                            cursorBrush = SolidColor(accent),
+                            decorationBox = { innerTextField ->
+                                Box {
+                                    if (inputText.isEmpty()) {
+                                        Text(
+                                            text = placeholders[placeholderIndex],
+                                            style = TextStyle(
+                                                color = textMuted.copy(alpha = 0.5f),
+                                                fontSize = 16.sp,
+                                                lineHeight = 26.sp
+                                            )
+                                        )
+                                    }
+                                    innerTextField()
                                 }
                             }
-                        ),
-                        minLines = 3,
-                        maxLines = 5
-                    )
-                    
-                    Button(
-                        onClick = {
-                            if (userInput.isNotBlank()) {
-                                keyboardController?.hide()
-                                onSubmit(userInput)
-                            }
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(52.dp),
-                        shape = RoundedCornerShape(14.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = accent,
-                            contentColor = Color.White,
-                            disabledContainerColor = accent.copy(alpha = 0.3f)
-                        ),
-                        enabled = userInput.isNotBlank()
-                    ) {
-                        Text(
-                            if (currentLanguage == "hi") "मार्गदर्शन पाएं" else "Seek Guidance",
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Medium,
-                            letterSpacing = 0.5.sp
                         )
+                        
+                        Spacer(modifier = Modifier.height(16.dp))
+                        
+                        // Send button
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.End,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            // Character count
+                            if (inputText.isNotEmpty()) {
+                                Text(
+                                    text = "${inputText.length}",
+                                    fontSize = 11.sp,
+                                    color = textMuted.copy(alpha = 0.4f),
+                                    modifier = Modifier.padding(end = 12.dp)
+                                )
+                            }
+                            
+                            // Send FAB
+                            FilledIconButton(
+                                onClick = {
+                                    if (inputText.isNotBlank()) {
+                                        onSubmit(inputText)
+                                        inputText = ""
+                                    }
+                                },
+                                enabled = inputText.isNotBlank(),
+                                modifier = Modifier.size(44.dp),
+                                shape = CircleShape,
+                                colors = IconButtonDefaults.filledIconButtonColors(
+                                    containerColor = if (inputText.isNotBlank()) accent else accent.copy(alpha = 0.2f),
+                                    contentColor = if (isDarkMode) Color(0xFF1A1A1A) else Color.White,
+                                    disabledContainerColor = accent.copy(alpha = 0.1f),
+                                    disabledContentColor = textMuted.copy(alpha = 0.3f)
+                                )
+                            ) {
+                                Icon(
+                                    Icons.AutoMirrored.Outlined.Send,
+                                    contentDescription = "Send",
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
                     }
                 }
             }
             
-            Spacer(modifier = Modifier.weight(0.4f))
-            
-            // Subtle footer quote
-            Text(
-                text = if (currentLanguage == "hi")
-                    "कर्मण्येवाधिकारस्ते मा फलेषु कदाचन"
-                else
-                    "You have the right to work, but never to the fruit of work",
-                style = MaterialTheme.typography.bodySmall.copy(
-                    fontStyle = FontStyle.Italic,
-                    lineHeight = 18.sp
-                ),
-                color = textMuted.copy(alpha = 0.6f),
-                textAlign = TextAlign.Center,
-                modifier = Modifier.padding(horizontal = 32.dp)
-            )
-            
-            Spacer(modifier = Modifier.height(24.dp))
+            // Bottom nav hints
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 24.dp),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                TextButton(
+                    onClick = { /* Navigate to history via parent */ },
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                ) {
+                    Icon(
+                        Icons.Outlined.History,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = textMuted.copy(alpha = 0.5f)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        "History",
+                        fontSize = 12.sp,
+                        color = textMuted.copy(alpha = 0.5f)
+                    )
+                }
+                
+                Text(
+                    " · ",
+                    color = textMuted.copy(alpha = 0.2f),
+                    fontSize = 14.sp
+                )
+                
+                TextButton(
+                    onClick = { /* Navigate to settings via parent */ },
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                ) {
+                    Icon(
+                        Icons.Outlined.Settings,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = textMuted.copy(alpha = 0.5f)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        "Settings",
+                        fontSize = 12.sp,
+                        color = textMuted.copy(alpha = 0.5f)
+                    )
+                }
+            }
         }
     }
 }
