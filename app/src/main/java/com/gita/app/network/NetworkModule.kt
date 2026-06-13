@@ -1,9 +1,12 @@
 package com.gita.app.network
 
 import android.util.Log
+import com.gita.app.data.GeminiRepository
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.Response
+import retrofit2.Retrofit
+import retrofit2.converter.gson.GsonConverterFactory
 import java.io.IOException
 import java.util.concurrent.TimeUnit
 
@@ -59,4 +62,19 @@ object NetworkModule {
             .addInterceptor(retryInterceptor)
             .build()
     }
+
+    private val geminiRetrofit: Retrofit by lazy {
+        Retrofit.Builder()
+            .baseUrl("https://generativelanguage.googleapis.com/")
+            .client(client)
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+    }
+
+    private val geminiApi: GeminiApi by lazy {
+        geminiRetrofit.create(GeminiApi::class.java)
+    }
+
+    fun geminiRepository(apiKey: String): GeminiRepository =
+        GeminiRepository(geminiApi, apiKey)
 }

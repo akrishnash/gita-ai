@@ -1,6 +1,5 @@
 package com.gita.app.logic
 
-import com.gita.app.data.GitaMap
 import com.gita.app.data.ReflectionAngle
 import com.gita.app.data.VerseEntry
 import kotlin.math.absoluteValue
@@ -17,51 +16,7 @@ class SelectionEngine(private val storage: LocalStorage) {
      * Selects a verse for the given theme/subtheme.
      * Rotates through verses and avoids immediate repetition.
      */
-    suspend fun selectVerse(themeId: String, subthemeId: String): VerseEntry? {
-        val theme = GitaMap.themes.find { it.id == themeId }
-        val subtheme = theme?.subthemes?.find { it.id == subthemeId }
-        
-        if (subtheme == null || subtheme.verses.isEmpty()) {
-            return null
-        }
-        
-        val seenVerseIds = storage.getSeenVerseIds()
-        val lastVerseId = storage.getLastVerseId()
-        
-        // Filter out the last verse to avoid immediate repetition
-        val availableVerses = if (lastVerseId != null) {
-            subtheme.verses.filter { it.id != lastVerseId }
-        } else {
-            subtheme.verses
-        }
-        
-        // If all verses were seen, reset and use all verses
-        val versesToChooseFrom = if (availableVerses.isEmpty()) {
-            subtheme.verses
-        } else {
-            availableVerses
-        }
-        
-        // Select verse (simple rotation based on seen count)
-        val selectedVerse = if (versesToChooseFrom.size == 1) {
-            versesToChooseFrom.first()
-        } else {
-            val seenCount = seenVerseIds.size
-            val index = seenCount % versesToChooseFrom.size
-            versesToChooseFrom[index]
-        }
-        
-        // Mark as seen and update last verse
-        try {
-            storage.addSeenVerseId(selectedVerse.id)
-            storage.setLastVerseId(selectedVerse.id)
-        } catch (e: Exception) {
-            // If storage fails, still return the verse (non-critical)
-            e.printStackTrace()
-        }
-        
-        return selectedVerse
-    }
+    suspend fun selectVerse(themeId: String, subthemeId: String): VerseEntry? = null
     
     /**
      * Gets the next reflection angle for a verse.

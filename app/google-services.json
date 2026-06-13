@@ -7,12 +7,25 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:288776001576:android:e7542cdb19c141b953fd1d",
+        "mobilesdk_app_id": "1:288776001576:android:74fbd85bc4939b5653fd1d",
         "android_client_info": {
           "package_name": "com.gita.app"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "288776001576-h1ekgakhe61hbvnschp14k5mt2grio9d.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.gita.app",
+            "certificate_hash": "d24d76f81e871c97e349c93991d277da673e9ef4"
+          }
+        },
+        {
+          "client_id": "288776001576-i6ogc13navgt2pitigq351vmrkvm0uap.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyAlHQnGekdyHqwqeYDGBPCtRy-Up49HX2o"
@@ -20,7 +33,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "288776001576-i6ogc13navgt2pitigq351vmrkvm0uap.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

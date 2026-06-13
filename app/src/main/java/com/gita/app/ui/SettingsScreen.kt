@@ -6,10 +6,13 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import android.app.TimePickerDialog
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
-import androidx.compose.material.icons.outlined.Key
 import androidx.compose.material.icons.outlined.Analytics
+import androidx.compose.material.icons.outlined.Key
+import androidx.compose.material.icons.outlined.NotificationsNone
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -31,18 +34,26 @@ import com.gita.app.ui.theme.*
 fun SettingsScreen(
     aiApiKey: String?,
     usageStats: OpenAIUsageTracker.UsageSummary,
+    isDarkMode: Boolean = true,
+    isLoggedIn: Boolean = false,
+    enableDailyVerse: Boolean = true,
+    dailyVerseHour: Int = 8,
     onSaveApiKey: (String?) -> Unit,
+    onSignOut: () -> Unit = {},
+    onDailyVerseToggle: (Boolean) -> Unit = {},
+    onDailyVerseHourChange: (Int) -> Unit = {},
     onBack: () -> Unit
 ) {
     var apiKeyInput by remember { mutableStateOf(aiApiKey ?: "") }
-    
-    val bgPrimary = SurfaceDark
-    val bgCard = SurfaceDarkElevated
-    val textPrimary = OnSurfaceDark
-    val textMuted = OnSurfaceDarkMuted
-    val accent = IndigoLight
-    val gold = SaffronGold
-    val divider = OutlineDark
+    val context = LocalContext.current
+
+    val bgPrimary = if (isDarkMode) SurfaceDark else SurfaceLight
+    val bgCard = if (isDarkMode) SurfaceDarkElevated else SurfaceLightElevated
+    val textPrimary = if (isDarkMode) OnSurfaceDark else OnSurfaceLight
+    val textMuted = if (isDarkMode) OnSurfaceDarkMuted else OnSurfaceLightMuted
+    val accent = if (isDarkMode) IndigoLight else IndigoPrimary
+    val gold = if (isDarkMode) SaffronGold else SaffronDeep
+    val divider = if (isDarkMode) OutlineDark else OutlineLight
     
     Scaffold(
         containerColor = bgPrimary,
@@ -217,6 +228,101 @@ fun SettingsScreen(
             }
             
             // ═══════════════════════════════════════════════════════
+            // Daily Verse Section
+            // ═══════════════════════════════════════════════════════
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = bgCard),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(1.dp, divider, RoundedCornerShape(16.dp))
+                        .padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    // Header row
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            Icons.Outlined.NotificationsNone,
+                            contentDescription = null,
+                            tint = gold,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Text(
+                            text = "Daily Verse",
+                            style = MaterialTheme.typography.titleSmall.copy(
+                                fontWeight = FontWeight.Medium
+                            ),
+                            color = textPrimary,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Switch(
+                            checked = enableDailyVerse,
+                            onCheckedChange = onDailyVerseToggle,
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = bgPrimary,
+                                checkedTrackColor = gold
+                            )
+                        )
+                    }
+
+                    Text(
+                        text = "Receive a Gita verse each morning to start the day with wisdom.",
+                        style = MaterialTheme.typography.bodySmall.copy(lineHeight = 20.sp),
+                        color = textMuted
+                    )
+
+                    // Time picker row — only when enabled
+                    if (enableDailyVerse) {
+                        Divider(color = divider)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = "Remind me at",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = textMuted
+                            )
+                            val displayHour = when {
+                                dailyVerseHour == 0 -> "12:00 AM"
+                                dailyVerseHour < 12 -> "${dailyVerseHour}:00 AM"
+                                dailyVerseHour == 12 -> "12:00 PM"
+                                else -> "${dailyVerseHour - 12}:00 PM"
+                            }
+                            TextButton(
+                                onClick = {
+                                    TimePickerDialog(
+                                        context,
+                                        { _, hour, _ -> onDailyVerseHourChange(hour) },
+                                        dailyVerseHour,
+                                        0,
+                                        false
+                                    ).show()
+                                },
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                            ) {
+                                Text(
+                                    text = displayHour,
+                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                        fontWeight = FontWeight.SemiBold
+                                    ),
+                                    color = accent
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ═══════════════════════════════════════════════════════
             // Usage Stats Section
             // ═══════════════════════════════════════════════════════
             Card(
@@ -308,6 +414,26 @@ fun SettingsScreen(
                 }
             }
             
+            // ═══════════════════════════════════════════════════════
+            // Sign Out
+            // ═══════════════════════════════════════════════════════
+            if (isLoggedIn) {
+                TextButton(
+                    onClick = onSignOut,
+                    modifier = Modifier.fillMaxWidth(),
+                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp)
+                ) {
+                    Text(
+                        text = "Sign Out",
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            fontWeight = FontWeight.Medium
+                        ),
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+
             // ═══════════════════════════════════════════════════════
             // About Section
             // ═══════════════════════════════════════════════════════

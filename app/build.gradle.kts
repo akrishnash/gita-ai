@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -23,8 +25,16 @@ android {
 
     buildTypes {
         debug {
-            // Dev-only: allow injecting the OpenAI key via environment variable or Gradle property.
-            // Prefer NOT to ship a key in release builds.
+            val localProps = Properties()
+            val localPropsFile = rootProject.file("local.properties")
+            if (localPropsFile.exists()) localPropsFile.inputStream().use { localProps.load(it) }
+
+            val geminiKey = localProps.getProperty("GEMINI_API_KEY", "")
+            buildConfigField("String", "GEMINI_API_KEY", "\"${geminiKey.replace("\\", "\\\\").replace("\"", "\\\"")}\"")
+
+            val googleWebClientId = localProps.getProperty("GOOGLE_WEB_CLIENT_ID", "")
+            buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"${googleWebClientId.replace("\\", "\\\\").replace("\"", "\\\"")}\"")
+
             val openAiKey = (project.findProperty("OPENAI_API_KEY") as String?)
                 ?: System.getenv("OPENAI_API_KEY")
                 ?: ""
@@ -32,7 +42,9 @@ android {
         }
         release {
             isMinifyEnabled = true
-            // Release: do not embed secrets in the APK.
+            // Strip all secrets from release builds.
+            buildConfigField("String", "GEMINI_API_KEY", "\"\"")
+            buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"\"")
             buildConfigField("String", "OPENAI_API_KEY", "\"\"")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
@@ -107,6 +119,9 @@ dependencies {
     implementation("androidx.credentials:credentials-play-services-auth:1.3.0-alpha01")
     implementation("com.google.android.libraries.identity.googleid:googleid:1.1.0")
     
+    // WorkManager for scheduled notifications
+    implementation("androidx.work:work-runtime-ktx:2.9.0")
+
     // Testing
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.1.5")

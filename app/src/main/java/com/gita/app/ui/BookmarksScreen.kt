@@ -1,64 +1,54 @@
 package com.gita.app.ui
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.*
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
-import androidx.compose.material.icons.outlined.History
+import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material3.*
+import androidx.compose.ui.graphics.Color
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.gita.app.logic.HistoryEntry
+import com.gita.app.data.BookmarkedVerse
 import com.gita.app.ui.theme.*
 import java.text.SimpleDateFormat
 import java.util.*
 
-/**
- * History screen — shows past user interactions with the Gita AI.
- * 
- * Features: grouped by date, verse reference per entry, staggered animations.
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HistoryScreen(
-    historyEntries: List<HistoryEntry>,
+fun BookmarksScreen(
+    bookmarks: List<BookmarkedVerse>,
     isDarkMode: Boolean = true,
+    onRemoveBookmark: (String) -> Unit,
     onBack: () -> Unit
 ) {
     val bgPrimary = if (isDarkMode) SurfaceDark else SurfaceLight
-    val bgCard = if (isDarkMode) SurfaceDarkElevated else SurfaceLightElevated
+    val bgCard   = if (isDarkMode) SurfaceDarkElevated else SurfaceLightElevated
     val textPrimary = if (isDarkMode) OnSurfaceDark else OnSurfaceLight
-    val textMuted = if (isDarkMode) OnSurfaceDarkMuted else OnSurfaceLightMuted
+    val textMuted   = if (isDarkMode) OnSurfaceDarkMuted else OnSurfaceLightMuted
     val accent = if (isDarkMode) IndigoLight else IndigoPrimary
-    val gold = if (isDarkMode) SaffronGold else SaffronDeep
-    val divider = if (isDarkMode) OutlineDark else OutlineLight
-    
+    val gold   = if (isDarkMode) SaffronGold else SaffronDeep
+
     Scaffold(
         containerColor = bgPrimary,
         topBar = {
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                color = bgPrimary
-            ) {
+            Surface(modifier = Modifier.fillMaxWidth(), color = bgPrimary) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -67,10 +57,7 @@ fun HistoryScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    IconButton(
-                        onClick = onBack,
-                        modifier = Modifier.size(40.dp)
-                    ) {
+                    IconButton(onClick = onBack, modifier = Modifier.size(40.dp)) {
                         Icon(
                             Icons.AutoMirrored.Outlined.ArrowBack,
                             contentDescription = "Back",
@@ -78,9 +65,8 @@ fun HistoryScreen(
                             modifier = Modifier.size(20.dp)
                         )
                     }
-                    
                     Text(
-                        text = "HISTORY",
+                        text = "BOOKMARKS",
                         style = MaterialTheme.typography.titleMedium.copy(
                             fontWeight = FontWeight.Light,
                             letterSpacing = 4.sp,
@@ -88,19 +74,14 @@ fun HistoryScreen(
                         ),
                         color = textMuted
                     )
-                    
-                    // Spacer for symmetry
                     Spacer(modifier = Modifier.size(40.dp))
                 }
             }
         }
     ) { padding ->
-        if (historyEntries.isEmpty()) {
-            // Empty state
+        if (bookmarks.isEmpty()) {
             Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding),
+                modifier = Modifier.fillMaxSize().padding(padding),
                 contentAlignment = Alignment.Center
             ) {
                 Column(
@@ -108,13 +89,10 @@ fun HistoryScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                     modifier = Modifier.padding(horizontal = 40.dp)
                 ) {
-                    Text(
-                        text = "🪷",
-                        fontSize = 56.sp
-                    )
+                    Text("🔖", fontSize = 56.sp)
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "Your journey begins here",
+                        text = "No saved verses yet",
                         style = MaterialTheme.typography.titleMedium.copy(
                             fontFamily = FontFamily.Serif,
                             fontWeight = FontWeight.Light,
@@ -124,10 +102,8 @@ fun HistoryScreen(
                         textAlign = TextAlign.Center
                     )
                     Text(
-                        text = "Ask a question and your reflections will appear here",
-                        style = MaterialTheme.typography.bodySmall.copy(
-                            lineHeight = 20.sp
-                        ),
+                        text = "Bookmark a verse on the response screen to save it here",
+                        style = MaterialTheme.typography.bodySmall.copy(lineHeight = 20.sp),
                         color = textMuted.copy(alpha = 0.4f),
                         textAlign = TextAlign.Center
                     )
@@ -135,31 +111,28 @@ fun HistoryScreen(
             }
         } else {
             LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding),
+                modifier = Modifier.fillMaxSize().padding(padding),
                 contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                itemsIndexed(historyEntries) { index, entry ->
+                itemsIndexed(bookmarks) { index, bm ->
                     var visible by remember { mutableStateOf(false) }
                     LaunchedEffect(Unit) {
                         kotlinx.coroutines.delay(index * 50L)
                         visible = true
                     }
-                    
                     AnimatedVisibility(
                         visible = visible,
                         enter = fadeIn(tween(300)) + slideInVertically(tween(300)) { it / 4 }
                     ) {
-                        HistoryItem(
-                            entry = entry,
+                        BookmarkItem(
+                            bm = bm,
                             bgCard = bgCard,
                             textPrimary = textPrimary,
                             textMuted = textMuted,
                             accent = accent,
                             gold = gold,
-                            divider = divider
+                            onRemove = { onRemoveBookmark(bm.verseId) }
                         )
                     }
                 }
@@ -169,30 +142,26 @@ fun HistoryScreen(
 }
 
 @Composable
-private fun HistoryItem(
-    entry: HistoryEntry,
+private fun BookmarkItem(
+    bm: BookmarkedVerse,
     bgCard: Color,
-    textPrimary: Color,
-    textMuted: Color,
-    accent: Color,
-    gold: Color,
-    divider: Color
+    textPrimary: androidx.compose.ui.graphics.Color,
+    textMuted: androidx.compose.ui.graphics.Color,
+    accent: androidx.compose.ui.graphics.Color,
+    gold: androidx.compose.ui.graphics.Color,
+    onRemove: () -> Unit
 ) {
-    val dateFormat = remember { SimpleDateFormat("MMM dd", Locale.getDefault()) }
-    val timeFormat = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
-    val date = remember(entry.timestamp) { Date(entry.timestamp) }
-    var expanded by remember { mutableStateOf(false) }
+    val dateFormat = remember { SimpleDateFormat("MMM dd · HH:mm", Locale.getDefault()) }
+    val date = remember(bm.savedAt) { Date(bm.savedAt) }
 
-    // Left-accent card: gold bar on the left, no outer border
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(24.dp))
             .background(bgCard)
-            .clickable { expanded = !expanded }
             .height(IntrinsicSize.Min)
     ) {
-        // 4dp gold accent bar on the left
+        // Gold accent bar on left
         Box(
             modifier = Modifier
                 .width(4.dp)
@@ -202,57 +171,81 @@ private fun HistoryItem(
 
         Column(
             modifier = Modifier
-                .fillMaxWidth()
+                .weight(1f)
                 .padding(horizontal = 16.dp, vertical = 14.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            // User input
-            Text(
-                text = entry.userInput,
-                style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 22.sp),
-                maxLines = if (expanded) Int.MAX_VALUE else 2,
-                overflow = TextOverflow.Ellipsis,
-                color = textPrimary
-            )
-
-            // Verse reference
-            Text(
-                text = "Verse ${entry.verseId}",
-                style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.sp),
-                color = gold.copy(alpha = 0.7f)
-            )
-
-            // Anchor line — expands on tap
-            if (entry.anchorLine.isNotBlank()) {
+            // Chapter/Verse pill
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(50.dp))
+                    .background(gold.copy(alpha = 0.08f))
+                    .padding(horizontal = 10.dp, vertical = 3.dp)
+            ) {
                 Text(
-                    text = entry.anchorLine,
-                    style = MaterialTheme.typography.bodySmall.copy(
-                        fontFamily = FontFamily.Serif,
-                        lineHeight = 18.sp
+                    text = bm.chapterVerse,
+                    style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.sp),
+                    color = gold.copy(alpha = 0.8f)
+                )
+            }
+
+            // Sanskrit — 2 lines, italic
+            Text(
+                text = bm.sanskrit,
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontFamily = FontFamily.Serif,
+                    fontStyle = FontStyle.Italic,
+                    lineHeight = 22.sp
+                ),
+                color = gold,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+
+            // Translation — 3 lines
+            Text(
+                text = bm.translation,
+                style = MaterialTheme.typography.bodySmall.copy(lineHeight = 18.sp),
+                color = textPrimary.copy(alpha = 0.85f),
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis
+            )
+
+            // User problem that led here
+            if (bm.userProblem.isNotBlank()) {
+                Text(
+                    text = "\"${bm.userProblem}\"",
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontStyle = FontStyle.Italic
                     ),
-                    color = textMuted.copy(alpha = 0.6f),
-                    maxLines = if (expanded) Int.MAX_VALUE else 2,
+                    color = textMuted.copy(alpha = 0.45f),
+                    maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
             }
 
-            // Timestamp + expand hint
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "${dateFormat.format(date)} · ${timeFormat.format(date)}",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = textMuted.copy(alpha = 0.4f)
-                )
-                Text(
-                    text = if (expanded) "less" else "more",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = accent.copy(alpha = 0.5f)
-                )
-            }
+            // Timestamp
+            Text(
+                text = dateFormat.format(date),
+                style = MaterialTheme.typography.labelSmall,
+                color = textMuted.copy(alpha = 0.4f)
+            )
+        }
+
+        // Delete button
+        IconButton(
+            onClick = onRemove,
+            modifier = Modifier
+                .align(Alignment.Top)
+                .padding(top = 6.dp, end = 4.dp)
+                .size(36.dp)
+        ) {
+            Icon(
+                Icons.Outlined.DeleteOutline,
+                contentDescription = "Remove bookmark",
+                tint = textMuted.copy(alpha = 0.35f),
+                modifier = Modifier.size(18.dp)
+            )
         }
     }
 }

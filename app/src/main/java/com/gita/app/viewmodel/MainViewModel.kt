@@ -1,6 +1,7 @@
 package com.gita.app.viewmodel
 
 import android.app.Application
+import android.content.Context
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -9,16 +10,28 @@ import com.gita.app.data.ReflectionAngle
 import com.gita.app.data.VerseEntry
 import com.gita.app.kotlinmodel.KotlinModelRepository
 import com.gita.app.kotlinmodel.OpenAIUsageTracker
+import com.gita.app.data.BookmarkedVerse
+import com.gita.app.logic.AuthManager
+import com.gita.app.logic.DailyVerseScheduler
+import com.gita.app.logic.StreakManager
 import com.gita.app.logic.DetectedTheme
 import com.gita.app.logic.HistoryEntry
 import com.gita.app.logic.LocalStorage
 import com.gita.app.logic.SelectionEngine
 import com.gita.app.logic.ThemeDetector
+import com.gita.app.network.NetworkModule
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+
+/** Tracks the in-flight Gemini request state shown inside ResponseScreen. */
+sealed class UiState {
+    object Loading : UiState()
+    data class Success(val response: String) : UiState()
+    data class Error(val message: String) : UiState()
+}
 
 /**
  * Navigation state machine for the app.
@@ -46,6 +59,10 @@ sealed class AppState {
     object History : AppState()
     /** Settings/API key config */
     object Settings : AppState()
+    /** Google Sign-In / guest choice */
+    object Login : AppState()
+    /** Saved verse bookmarks */
+    object Bookmarks : AppState()
     /** Error with retry */
     data class Error(
         val message: String,
@@ -96,7 +113,25 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     
     private val _historyEntries = MutableStateFlow<List<HistoryEntry>>(emptyList())
     val historyEntries: StateFlow<List<HistoryEntry>> = _historyEntries.asStateFlow()
-    
+
+    private val _uiState = MutableStateFlow<UiState>(UiState.Success(""))
+    val uiState: StateFlow<UiState> = _uiState.asStateFlow()
+
+    private val _dailyVerseEnabled = MutableStateFlow(true)
+    val dailyVerseEnabled: StateFlow<Boolean> = _dailyVerseEnabled.asStateFlow()
+
+    private val _dailyVerseHour = MutableStateFlow(8)
+    val dailyVerseHour: StateFlow<Int> = _dailyVerseHour.asStateFlow()
+
+    private val _streak = MutableStateFlow(0)
+    val streak: StateFlow<Int> = _streak.asStateFlow()
+
+    private val _bookmarks = MutableStateFlow<List<BookmarkedVerse>>(emptyList())
+    val bookmarks: StateFlow<List<BookmarkedVerse>> = _bookmarks.asStateFlow()
+
+    private val _isCurrentVerseBookmarked = MutableStateFlow(false)
+    val isCurrentVerseBookmarked: StateFlow<Boolean> = _isCurrentVerseBookmarked.asStateFlow()
+
     // Store current problem and theme for alternate perspectives
     private var currentProblem: String = ""
     private var currentThemeId: String = ""
@@ -119,7 +154,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val saved = storage.getAiApiKey()
                 val buildConfigKey = BuildConfig.OPENAI_API_KEY.takeIf { it.isNotBlank() }
                 _aiApiKey.value = saved ?: buildConfigKey
+
+                // Load daily verse prefs and (re-)schedule if enabled
+                _dailyVerseEnabled.value = storage.getDailyVerseEnabled()
+                _dailyVerseHour.value = storage.getDailyVerseHour()
+                if (_dailyVerseEnabled.value) {
+                    DailyVerseScheduler.scheduleDailyVerse(
+                        application.applicationContext, _dailyVerseHour.value
+                    )
+                }
                 
+                // Load streak
+                _streak.value = StreakManager.getCurrentStreak(application.applicationContext)
+
                 // Warm up KotlinModel assets (models + embeddings + verse/story data)
                 kotlinModelRepo.ensureInitialized()
                 
@@ -128,8 +175,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             } catch (e: Exception) {
                 Log.e("MainViewModel", "Initialization error (non-fatal)", e)
             } finally {
-                // Always proceed to Home, even if init partially fails
-                _appState.value = AppState.Home
+                // Route to Login if not authenticated, Home if already signed in or guest
+                _appState.value = if (AuthManager.isLoggedIn) AppState.Home else AppState.Login
             }
         }
     }
@@ -160,7 +207,75 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             try {
                 val apiKey = _aiApiKey.value
-                
+
+                // ══════════════════════════════════════════════════════════════
+                // GEMINI MODE: Primary AI pipeline via Gemini Flash
+                // ══════════════════════════════════════════════════════════════
+                val geminiKey = BuildConfig.GEMINI_API_KEY
+                if (geminiKey.isNotBlank()) {
+                    Log.d("MainViewModel", "Using GEMINI pipeline...")
+                    _uiState.value = UiState.Loading
+
+                    val result = try {
+                        NetworkModule.geminiRepository(geminiKey)
+                            .getVerseForProblem(currentProblem)
+                    } catch (e: Exception) {
+                        Log.e("MainViewModel", "Gemini call threw", e)
+                        Result.failure(e)
+                    }
+
+                    if (result.isSuccess) {
+                        val g = result.getOrThrow()
+                        Log.i("MainViewModel", "✅ Gemini match: ${g.chapter}.${g.verse}")
+
+                        val reflections = mapOf(
+                            ReflectionAngle.PSYCHOLOGICAL to g.guidance,
+                            ReflectionAngle.ACTION to g.guidance,
+                            ReflectionAngle.DETACHMENT to g.guidance,
+                            ReflectionAngle.COMPASSION to g.guidance,
+                            ReflectionAngle.SELFTRUST to g.guidance
+                        )
+                        val anchorLine = g.guidance.take(120).trimEnd() +
+                            if (g.guidance.length > 120) "…" else ""
+
+                        val verseEntry = VerseEntry(
+                            id = "${g.chapter}.${g.verse}",
+                            chapter = g.chapter,
+                            verse = g.verse,
+                            sanskrit = g.sanskrit,
+                            transliteration = "",
+                            translation = g.translation,
+                            context = g.guidance,
+                            reflections = reflections,
+                            anchorLines = listOf(anchorLine)
+                        )
+
+                        currentThemeId = "gemini"
+                        currentSubthemeId = "gemini"
+                        currentVerse = verseEntry
+
+                        saveHistoryEntry(verseEntry, anchorLine)
+                        _uiState.value = UiState.Success(g.guidance)
+
+                        _appState.value = AppState.Response(
+                            verse = verseEntry,
+                            reflection = g.guidance,
+                            anchorLine = anchorLine,
+                            currentAngle = ReflectionAngle.PSYCHOLOGICAL,
+                            userInput = currentProblem,
+                            themeId = currentThemeId,
+                            subthemeId = currentSubthemeId,
+                            story = null,
+                            debugInfo = null
+                        )
+                        return@launch
+                    } else {
+                        Log.w("MainViewModel", "Gemini failed: ${result.exceptionOrNull()?.message}, falling back")
+                        _uiState.value = UiState.Error(result.exceptionOrNull()?.message ?: "Gemini error")
+                        // fall through to offline pipeline
+                    }
+                }
+
                 // ══════════════════════════════════════════════════════════════
                 // ENHANCED MODE: Multi-stage re-ranking with OpenAI
                 // ══════════════════════════════════════════════════════════════
@@ -415,6 +530,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 anchorLine = anchorLine
             )
             storage.addHistoryEntry(historyEntry)
+            StreakManager.recordActivity(getApplication<android.app.Application>().applicationContext)
+            _streak.value = StreakManager.getCurrentStreak(getApplication<android.app.Application>().applicationContext)
+            // Refresh bookmark status for the new verse
+            _isCurrentVerseBookmarked.value = storage.isBookmarked(verse.id)
         } catch (e: Exception) {
             Log.e("MainViewModel", "Failed to save history (non-critical)", e)
         }
@@ -484,15 +603,90 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
     
     // ═══════════════════════════════════════════════════════════════
+    // Auth
+    // ═══════════════════════════════════════════════════════════════
+
+    private val _isLoggedIn = MutableStateFlow(AuthManager.isLoggedIn)
+    val isLoggedIn: StateFlow<Boolean> = _isLoggedIn.asStateFlow()
+
+    private val _isSigningIn = MutableStateFlow(false)
+    val isSigningIn: StateFlow<Boolean> = _isSigningIn.asStateFlow()
+
+    fun signInWithGoogle(context: Context) {
+        viewModelScope.launch {
+            _isSigningIn.value = true
+            val webClientId = BuildConfig.GOOGLE_WEB_CLIENT_ID
+            val result = AuthManager.signInWithGoogle(context, webClientId)
+            _isSigningIn.value = false
+            if (result.isSuccess) {
+                _isLoggedIn.value = true
+                navigateToHome()
+            } else {
+                val msg = result.exceptionOrNull()?.message ?: "Google sign-in failed"
+                _appState.value = AppState.Error(
+                    message = msg,
+                    isNetworkError = false,
+                    retryAction = { _appState.value = AppState.Login }
+                )
+            }
+        }
+    }
+
+    fun continueAsGuest() {
+        navigateToHome()
+    }
+
+    fun signOut() {
+        AuthManager.signOut()
+        _isLoggedIn.value = false
+        _appState.value = AppState.Login
+    }
+
+    // ═══════════════════════════════════════════════════════════════
     // Navigation
     // ═══════════════════════════════════════════════════════════════
-    
+
     fun navigateToHome() {
         currentProblem = ""
         currentVerse = null
         _appState.value = AppState.Home
     }
     
+    fun navigateToBookmarks() {
+        viewModelScope.launch {
+            _bookmarks.value = storage.getBookmarks()
+            _appState.value = AppState.Bookmarks
+        }
+    }
+
+    fun toggleBookmark(verse: VerseEntry, translation: String, userProblem: String) {
+        viewModelScope.launch {
+            if (storage.isBookmarked(verse.id)) {
+                storage.removeBookmark(verse.id)
+                _isCurrentVerseBookmarked.value = false
+            } else {
+                storage.saveBookmark(
+                    BookmarkedVerse(
+                        verseId = verse.id,
+                        sanskrit = verse.sanskrit,
+                        translation = translation,
+                        chapterVerse = "BG ${verse.chapter}.${verse.verse}",
+                        userProblem = userProblem,
+                        savedAt = System.currentTimeMillis()
+                    )
+                )
+                _isCurrentVerseBookmarked.value = true
+            }
+        }
+    }
+
+    fun removeBookmark(verseId: String) {
+        viewModelScope.launch {
+            storage.removeBookmark(verseId)
+            _bookmarks.value = storage.getBookmarks()
+        }
+    }
+
     fun navigateToHistory() {
         viewModelScope.launch {
             _historyEntries.value = storage.getHistoryEntries()
@@ -538,6 +732,35 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _isDarkMode.value = dark
         viewModelScope.launch {
             storage.setDarkMode(dark)
+        }
+    }
+
+    fun setDailyVerseEnabled(enabled: Boolean) {
+        _dailyVerseEnabled.value = enabled
+        viewModelScope.launch {
+            storage.setDailyVerseEnabled(enabled)
+            if (enabled) {
+                DailyVerseScheduler.scheduleDailyVerse(
+                    getApplication<android.app.Application>().applicationContext,
+                    _dailyVerseHour.value
+                )
+            } else {
+                DailyVerseScheduler.cancelDailyVerse(
+                    getApplication<android.app.Application>().applicationContext
+                )
+            }
+        }
+    }
+
+    fun setDailyVerseHour(hour: Int) {
+        _dailyVerseHour.value = hour
+        viewModelScope.launch {
+            storage.setDailyVerseHour(hour)
+            if (_dailyVerseEnabled.value) {
+                DailyVerseScheduler.scheduleDailyVerse(
+                    getApplication<android.app.Application>().applicationContext, hour
+                )
+            }
         }
     }
 }

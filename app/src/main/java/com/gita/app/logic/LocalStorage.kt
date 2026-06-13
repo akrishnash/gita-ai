@@ -6,9 +6,11 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.gita.app.data.BookmarkedVerse
 import com.gita.app.data.ReflectionAngle
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
@@ -32,6 +34,9 @@ class LocalStorage(private val context: Context) {
         private val HISTORY_ENTRIES_KEY = stringPreferencesKey("history_entries_json")
         private val DARK_MODE_KEY = booleanPreferencesKey("dark_mode")
         private val LANGUAGE_KEY = stringPreferencesKey("language")
+        private val DAILY_VERSE_ENABLED_KEY = booleanPreferencesKey("daily_verse_enabled")
+        private val DAILY_VERSE_HOUR_KEY = intPreferencesKey("daily_verse_hour")
+        private val BOOKMARKS_KEY = stringPreferencesKey("bookmarked_verses")
         private fun getReflectionAngleKey(verseId: String) = stringPreferencesKey("reflection_angle_$verseId")
     }
     
@@ -232,6 +237,100 @@ class LocalStorage(private val context: Context) {
         } catch (e: Exception) {
             Log.e(TAG, "Failed to load language preference", e)
             "en"
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // Daily verse notification preferences
+    // ═══════════════════════════════════════════════════════════════
+
+    suspend fun setDailyVerseEnabled(enabled: Boolean) {
+        try {
+            context.dataStore.edit { it[DAILY_VERSE_ENABLED_KEY] = enabled }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to save daily verse enabled", e)
+        }
+    }
+
+    suspend fun getDailyVerseEnabled(): Boolean {
+        return try {
+            context.dataStore.data.first()[DAILY_VERSE_ENABLED_KEY] ?: true
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to load daily verse enabled", e)
+            true
+        }
+    }
+
+    suspend fun setDailyVerseHour(hour: Int) {
+        try {
+            context.dataStore.edit { it[DAILY_VERSE_HOUR_KEY] = hour }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to save daily verse hour", e)
+        }
+    }
+
+    suspend fun getDailyVerseHour(): Int {
+        return try {
+            context.dataStore.data.first()[DAILY_VERSE_HOUR_KEY] ?: 8
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to load daily verse hour", e)
+            8
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // Bookmarks
+    // ═══════════════════════════════════════════════════════════════
+
+    suspend fun saveBookmark(verse: BookmarkedVerse) {
+        try {
+            context.dataStore.edit { prefs ->
+                val list = parseBookmarks(prefs[BOOKMARKS_KEY]).toMutableList()
+                list.removeAll { it.verseId == verse.verseId }
+                list.add(0, verse)
+                prefs[BOOKMARKS_KEY] = gson.toJson(list)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to save bookmark", e)
+        }
+    }
+
+    suspend fun getBookmarks(): List<BookmarkedVerse> {
+        return try {
+            parseBookmarks(context.dataStore.data.first()[BOOKMARKS_KEY])
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to load bookmarks", e)
+            emptyList()
+        }
+    }
+
+    suspend fun removeBookmark(verseId: String) {
+        try {
+            context.dataStore.edit { prefs ->
+                val list = parseBookmarks(prefs[BOOKMARKS_KEY]).toMutableList()
+                list.removeAll { it.verseId == verseId }
+                prefs[BOOKMARKS_KEY] = gson.toJson(list)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to remove bookmark", e)
+        }
+    }
+
+    suspend fun isBookmarked(verseId: String): Boolean {
+        return try {
+            parseBookmarks(context.dataStore.data.first()[BOOKMARKS_KEY]).any { it.verseId == verseId }
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    private fun parseBookmarks(json: String?): List<BookmarkedVerse> {
+        if (json.isNullOrBlank()) return emptyList()
+        return try {
+            val type = object : com.google.gson.reflect.TypeToken<List<BookmarkedVerse>>() {}.type
+            gson.fromJson<List<BookmarkedVerse>>(json, type) ?: emptyList()
+        } catch (e: Exception) {
+            emptyList()
         }
     }
 }

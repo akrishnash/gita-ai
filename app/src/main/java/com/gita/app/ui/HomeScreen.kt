@@ -1,14 +1,17 @@
 package com.gita.app.ui
 
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Send
+import androidx.compose.material.icons.outlined.Bookmark
 import androidx.compose.material.icons.outlined.DarkMode
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.LightMode
@@ -22,13 +25,15 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gita.app.ui.theme.*
@@ -36,21 +41,24 @@ import kotlinx.coroutines.delay
 
 /**
  * Home screen — minimalist spiritual input interface.
- * 
- * Design: Dark immersive background with breathing Om symbol,
- * a prominent text input card, and subtle floating particles.
  */
 @Composable
 fun HomeScreen(
     isDarkMode: Boolean,
     language: String,
+    streak: Int = 0,
     onLanguageChange: (String) -> Unit,
     onDarkModeChange: (Boolean) -> Unit,
-    onSubmit: (String) -> Unit
+    onSubmit: (String) -> Unit,
+    onNavigateHistory: () -> Unit,
+    onNavigateBookmarks: () -> Unit,
+    onNavigateSettings: () -> Unit,
 ) {
     var inputText by remember { mutableStateOf("") }
+    var isFocused by remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
-    
+    val haptic = LocalHapticFeedback.current
+
     // Theme-aware colors
     val bgColor = if (isDarkMode) SurfaceDark else SurfaceLight
     val cardBg = if (isDarkMode) SurfaceDarkElevated else SurfaceLightElevated
@@ -58,9 +66,17 @@ fun HomeScreen(
     val textMuted = if (isDarkMode) OnSurfaceDarkMuted else OnSurfaceLightMuted
     val accent = if (isDarkMode) IndigoLight else IndigoPrimary
     val gold = if (isDarkMode) SaffronGold else SaffronDeep
+    val navBg = if (isDarkMode) Color(0xFF1A1A1A) else Color(0xFFF5F2EC)
     val inputBorder = if (isDarkMode) OutlineDark else OutlineLight
-    
-    // Breathing Om animation
+
+    // Focus-aware animated border color
+    val borderColor by animateColorAsState(
+        targetValue = if (isFocused) accent.copy(alpha = 0.55f) else inputBorder,
+        animationSpec = tween(300),
+        label = "borderColor"
+    )
+
+    // Breathing Om watermark
     val infiniteTransition = rememberInfiniteTransition(label = "home")
     val breatheScale by infiniteTransition.animateFloat(
         initialValue = 0.95f,
@@ -71,7 +87,6 @@ fun HomeScreen(
         ),
         label = "breathe"
     )
-    
     val omAlpha by infiniteTransition.animateFloat(
         initialValue = 0.06f,
         targetValue = 0.14f,
@@ -81,8 +96,6 @@ fun HomeScreen(
         ),
         label = "omAlpha"
     )
-    
-    // Subtle particle float
     val particleY by infiniteTransition.animateFloat(
         initialValue = 0f,
         targetValue = 12f,
@@ -92,8 +105,8 @@ fun HomeScreen(
         ),
         label = "particle"
     )
-    
-    // Title fade-in
+
+    // Content fade-in
     var contentVisible by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
         delay(100)
@@ -104,8 +117,8 @@ fun HomeScreen(
         animationSpec = tween(600, easing = EaseOut),
         label = "contentFade"
     )
-    
-    // Placeholder rotation
+
+    // Rotating placeholders
     val placeholders = listOf(
         "What's weighing on your mind?",
         "Share what troubles your heart...",
@@ -120,7 +133,16 @@ fun HomeScreen(
             placeholderIndex = (placeholderIndex + 1) % placeholders.size
         }
     }
-    
+
+    // Gradient button brush
+    val sendGradient = if (inputText.isNotBlank()) {
+        Brush.linearGradient(
+            if (isDarkMode) GitaColors.buttonGradientDark else GitaColors.buttonGradientLight
+        )
+    } else {
+        Brush.linearGradient(listOf(accent.copy(alpha = 0.15f), accent.copy(alpha = 0.15f)))
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -141,7 +163,7 @@ fun HomeScreen(
                 modifier = Modifier.scale(breatheScale)
             )
         }
-        
+
         // Floating decorative particles
         Box(
             modifier = Modifier
@@ -159,37 +181,55 @@ fun HomeScreen(
         ) {
             Text("✧", fontSize = 28.sp, color = gold)
         }
-        
+
+        // Subtle vertical gradient overlay — top transparent → bottom 8% gold tint
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .height(220.dp)
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(Color.Transparent, gold.copy(alpha = 0.08f))
+                    )
+                )
+        )
+
         // Main content
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .statusBarsPadding()
                 .padding(horizontal = 24.dp)
                 .alpha(contentAlpha),
             verticalArrangement = Arrangement.SpaceBetween
         ) {
-            // Top bar with actions
+            // Top bar
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 48.dp),
+                    .padding(top = 8.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // App title
-                Text(
-                    text = "GITA",
-                    style = MaterialTheme.typography.titleMedium.copy(
-                        fontWeight = FontWeight.Light,
-                        letterSpacing = 6.sp,
-                        fontSize = 16.sp
-                    ),
-                    color = textMuted
-                )
-                
+                // Elegant title lockup: lotus + गीता AI in serif
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("🪷", fontSize = 16.sp)
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "गीता AI",
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontFamily = FontFamily.Serif,
+                            fontWeight = FontWeight.Light,
+                            letterSpacing = 3.sp,
+                            fontSize = 18.sp
+                        ),
+                        color = textMuted
+                    )
+                }
+
                 // Action buttons
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    // Language toggle
                     TextButton(
                         onClick = { onLanguageChange(if (language == "en") "hi" else "en") },
                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
@@ -202,8 +242,6 @@ fun HomeScreen(
                             letterSpacing = 1.sp
                         )
                     }
-                    
-                    // Dark mode toggle
                     IconButton(
                         onClick = { onDarkModeChange(!isDarkMode) },
                         modifier = Modifier.size(40.dp)
@@ -217,7 +255,7 @@ fun HomeScreen(
                     }
                 }
             }
-            
+
             // Center content
             Column(
                 modifier = Modifier
@@ -236,32 +274,55 @@ fun HomeScreen(
                     ),
                     color = textPrimary
                 )
-                
+
                 Spacer(modifier = Modifier.height(8.dp))
-                
+
                 Text(
-                    text = if (language == "hi") 
-                        "अपने मन की बात साझा करें" 
-                    else 
-                        "Share what's on your mind",
-                    style = MaterialTheme.typography.bodyMedium.copy(
-                        letterSpacing = 0.5.sp
-                    ),
+                    text = if (language == "hi") "अपने मन की बात साझा करें" else "Share what's on your mind",
+                    style = MaterialTheme.typography.bodyMedium.copy(letterSpacing = 0.5.sp),
                     color = textMuted
                 )
-                
-                Spacer(modifier = Modifier.height(40.dp))
-                
-                // Input card
+
+                // Streak pill — only shown when streak ≥ 1
+                if (streak >= 1) {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(50.dp))
+                            .background(gold.copy(alpha = 0.10f))
+                            .padding(horizontal = 14.dp, vertical = 6.dp)
+                    ) {
+                        Text(
+                            text = "🔥 $streak day streak",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = gold.copy(alpha = 0.85f),
+                            letterSpacing = 0.3.sp
+                        )
+                    }
+                }
+
+                // Thin gold divider between greeting and input card
+                Spacer(modifier = Modifier.height(28.dp))
+                Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    Divider(
+                        modifier = Modifier.fillMaxWidth(0.35f),
+                        thickness = 0.5.dp,
+                        color = gold.copy(alpha = 0.35f)
+                    )
+                }
+                Spacer(modifier = Modifier.height(28.dp))
+
+                // Input card with focus-glow border
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(20.dp))
+                        .clip(RoundedCornerShape(24.dp))
                         .background(cardBg)
                         .border(
                             width = 1.dp,
-                            color = inputBorder,
-                            shape = RoundedCornerShape(20.dp)
+                            color = borderColor,
+                            shape = RoundedCornerShape(24.dp)
                         )
                         .padding(20.dp)
                 ) {
@@ -272,7 +333,8 @@ fun HomeScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .heightIn(min = 100.dp, max = 200.dp)
-                                .focusRequester(focusRequester),
+                                .focusRequester(focusRequester)
+                                .onFocusChanged { isFocused = it.isFocused },
                             textStyle = TextStyle(
                                 color = textPrimary,
                                 fontSize = 16.sp,
@@ -296,16 +358,15 @@ fun HomeScreen(
                                 }
                             }
                         )
-                        
+
                         Spacer(modifier = Modifier.height(16.dp))
-                        
-                        // Send button
+
+                        // Send row
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.End,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            // Character count
                             if (inputText.isNotEmpty()) {
                                 Text(
                                     text = "${inputText.length}",
@@ -314,28 +375,28 @@ fun HomeScreen(
                                     modifier = Modifier.padding(end = 12.dp)
                                 )
                             }
-                            
-                            // Send FAB
-                            FilledIconButton(
-                                onClick = {
-                                    if (inputText.isNotBlank()) {
+
+                            // Gradient send button with haptic feedback
+                            Box(
+                                modifier = Modifier
+                                    .size(44.dp)
+                                    .clip(CircleShape)
+                                    .background(sendGradient)
+                                    .clickable(enabled = inputText.isNotBlank()) {
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                         onSubmit(inputText)
                                         inputText = ""
-                                    }
-                                },
-                                enabled = inputText.isNotBlank(),
-                                modifier = Modifier.size(44.dp),
-                                shape = CircleShape,
-                                colors = IconButtonDefaults.filledIconButtonColors(
-                                    containerColor = if (inputText.isNotBlank()) accent else accent.copy(alpha = 0.2f),
-                                    contentColor = if (isDarkMode) Color(0xFF1A1A1A) else Color.White,
-                                    disabledContainerColor = accent.copy(alpha = 0.1f),
-                                    disabledContentColor = textMuted.copy(alpha = 0.3f)
-                                )
+                                    },
+                                contentAlignment = Alignment.Center
                             ) {
                                 Icon(
                                     Icons.AutoMirrored.Outlined.Send,
                                     contentDescription = "Send",
+                                    tint = if (inputText.isNotBlank()) {
+                                        if (isDarkMode) Color(0xFF1A1A1A) else Color.White
+                                    } else {
+                                        textMuted.copy(alpha = 0.3f)
+                                    },
                                     modifier = Modifier.size(20.dp)
                                 )
                             }
@@ -343,55 +404,100 @@ fun HomeScreen(
                     }
                 }
             }
-            
-            // Bottom nav hints
-            Row(
+
+            // Pill-shaped bottom navigation bar
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 24.dp),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
+                    .navigationBarsPadding()
+                    .padding(bottom = 16.dp),
+                contentAlignment = Alignment.Center
             ) {
-                TextButton(
-                    onClick = { /* Navigate to history via parent */ },
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(50.dp))
+                        .background(navBg.copy(alpha = 0.92f))
+                        .border(
+                            width = 0.5.dp,
+                            color = inputBorder,
+                            shape = RoundedCornerShape(50.dp)
+                        ),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        Icons.Outlined.History,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp),
-                        tint = textMuted.copy(alpha = 0.5f)
+                    TextButton(
+                        onClick = onNavigateHistory,
+                        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 10.dp)
+                    ) {
+                        Icon(
+                            Icons.Outlined.History,
+                            contentDescription = "History",
+                            modifier = Modifier.size(15.dp),
+                            tint = textMuted.copy(alpha = 0.6f)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            "History",
+                            fontSize = 12.sp,
+                            color = textMuted.copy(alpha = 0.6f)
+                        )
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .width(0.5.dp)
+                            .height(18.dp)
+                            .background(inputBorder)
                     )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        "History",
-                        fontSize = 12.sp,
-                        color = textMuted.copy(alpha = 0.5f)
+
+                    Box(
+                        modifier = Modifier
+                            .width(0.5.dp)
+                            .height(18.dp)
+                            .background(inputBorder)
                     )
-                }
-                
-                Text(
-                    " · ",
-                    color = textMuted.copy(alpha = 0.2f),
-                    fontSize = 14.sp
-                )
-                
-                TextButton(
-                    onClick = { /* Navigate to settings via parent */ },
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
-                ) {
-                    Icon(
-                        Icons.Outlined.Settings,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp),
-                        tint = textMuted.copy(alpha = 0.5f)
+
+                    TextButton(
+                        onClick = onNavigateBookmarks,
+                        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 10.dp)
+                    ) {
+                        Icon(
+                            Icons.Outlined.Bookmark,
+                            contentDescription = "Bookmarks",
+                            modifier = Modifier.size(15.dp),
+                            tint = textMuted.copy(alpha = 0.6f)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            "Saved",
+                            fontSize = 12.sp,
+                            color = textMuted.copy(alpha = 0.6f)
+                        )
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .width(0.5.dp)
+                            .height(18.dp)
+                            .background(inputBorder)
                     )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        "Settings",
-                        fontSize = 12.sp,
-                        color = textMuted.copy(alpha = 0.5f)
-                    )
+
+                    TextButton(
+                        onClick = onNavigateSettings,
+                        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 10.dp)
+                    ) {
+                        Icon(
+                            Icons.Outlined.Settings,
+                            contentDescription = "Settings",
+                            modifier = Modifier.size(15.dp),
+                            tint = textMuted.copy(alpha = 0.6f)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            "Settings",
+                            fontSize = 12.sp,
+                            color = textMuted.copy(alpha = 0.6f)
+                        )
+                    }
                 }
             }
         }

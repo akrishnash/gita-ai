@@ -16,7 +16,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.DarkMode
 import androidx.compose.material.icons.outlined.LightMode
+import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.outlined.Refresh
+import androidx.compose.material.icons.outlined.Share
+import androidx.compose.ui.platform.LocalContext
+import com.gita.app.logic.ShareManager
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -34,6 +39,7 @@ import androidx.compose.ui.unit.sp
 import com.gita.app.data.VerseEntry
 import com.gita.app.ui.theme.*
 import com.gita.app.viewmodel.StoryCard
+import com.gita.app.viewmodel.UiState
 import kotlinx.coroutines.delay
 
 /**
@@ -54,13 +60,17 @@ fun ResponseScreen(
     isDarkMode: Boolean = true,
     onLanguageChange: (String) -> Unit = {},
     onDarkModeChange: (Boolean) -> Unit = {},
+    uiState: UiState = UiState.Success(""),
+    isBookmarked: Boolean = false,
+    onToggleBookmark: () -> Unit = {},
     onAnotherPerspective: () -> Unit,
     onBack: () -> Unit,
     debugInfo: com.gita.app.kotlinmodel.MatchDebugInfo? = null
 ) {
-    var currentLanguage by remember { mutableStateOf(language) }
-    var currentDarkMode by remember { mutableStateOf(isDarkMode) }
-    
+    val context = LocalContext.current
+    var currentLanguage by remember(language) { mutableStateOf(language) }
+    var currentDarkMode by remember(isDarkMode) { mutableStateOf(isDarkMode) }
+
     // Theme-aware colors
     val bgPrimary = if (currentDarkMode) SurfaceDark else SurfaceLight
     val bgCard = if (currentDarkMode) SurfaceDarkElevated else SurfaceLightElevated
@@ -87,10 +97,10 @@ fun ResponseScreen(
     
     LaunchedEffect(Unit) {
         delay(100); section1Visible = true
-        delay(150); section2Visible = true
-        delay(150); section3Visible = true
-        delay(150); section4Visible = true
-        delay(150); section5Visible = true
+        delay(220); section2Visible = true
+        delay(220); section3Visible = true
+        delay(220); section4Visible = true
+        delay(220); section5Visible = true
     }
     
     Scaffold(
@@ -175,13 +185,13 @@ fun ResponseScreen(
                                 currentDarkMode = !currentDarkMode
                                 onDarkModeChange(currentDarkMode)
                             },
-                            modifier = Modifier.size(32.dp)
+                            modifier = Modifier.size(40.dp)
                         ) {
                             Icon(
                                 if (currentDarkMode) Icons.Outlined.LightMode else Icons.Outlined.DarkMode,
                                 contentDescription = "Toggle theme",
                                 tint = textMuted,
-                                modifier = Modifier.size(16.dp)
+                                modifier = Modifier.size(18.dp)
                             )
                         }
                     }
@@ -189,6 +199,50 @@ fun ResponseScreen(
             }
         }
     ) { padding ->
+        // ── Loading overlay — pulsing ॐ while Gemini is fetching ────────────
+        if (uiState is UiState.Loading) {
+            val infiniteTransition = rememberInfiniteTransition(label = "loadingOm")
+            val omAlpha by infiniteTransition.animateFloat(
+                initialValue = 0.4f,
+                targetValue = 1f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(2000, easing = EaseInOutSine),
+                    repeatMode = RepeatMode.Reverse
+                ),
+                label = "omPulse"
+            )
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(20.dp)
+                ) {
+                    Text(
+                        text = "ॐ",
+                        fontSize = 80.sp,
+                        fontFamily = FontFamily.Serif,
+                        fontWeight = FontWeight.Thin,
+                        color = gold.copy(alpha = omAlpha)
+                    )
+                    Text(
+                        text = "Seeking guidance...",
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            fontFamily = FontFamily.Serif,
+                            fontSize = 14.sp,
+                            letterSpacing = 1.5.sp
+                        ),
+                        color = textMuted.copy(alpha = 0.6f)
+                    )
+                }
+            }
+            return@Scaffold
+        }
+
+        // ── Normal content ────────────────────────────────────────────────────
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -229,7 +283,7 @@ fun ResponseScreen(
             ) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(18.dp),
+                    shape = RoundedCornerShape(24.dp),
                     colors = CardDefaults.cardColors(containerColor = bgCard),
                     elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                 ) {
@@ -239,7 +293,7 @@ fun ResponseScreen(
                             .border(
                                 width = 1.dp,
                                 color = divider,
-                                shape = RoundedCornerShape(18.dp)
+                                shape = RoundedCornerShape(24.dp)
                             )
                             .padding(24.dp),
                         verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -275,25 +329,35 @@ fun ResponseScreen(
                 enter = fadeIn(tween(500)) + slideInVertically(tween(500)) { it / 3 }
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    // Verse reference
-                    Text(
-                        text = if (currentLanguage == "hi")
-                            "अध्याय ${verse.chapter}, श्लोक ${verse.verse}"
-                        else
-                            "CHAPTER ${verse.chapter}, VERSE ${verse.verse}",
-                        style = MaterialTheme.typography.labelSmall.copy(
-                            letterSpacing = 2.sp,
-                            fontWeight = FontWeight.Medium
-                        ),
-                        color = accent,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    
+                    // Verse reference — pill/chip style
+                    Box(
+                        modifier = Modifier.fillMaxWidth(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(50.dp))
+                                .background(accent.copy(alpha = 0.1f))
+                                .padding(horizontal = 16.dp, vertical = 6.dp)
+                        ) {
+                            Text(
+                                text = if (currentLanguage == "hi")
+                                    "अध्याय ${verse.chapter}  ·  श्लोक ${verse.verse}"
+                                else
+                                    "Ch. ${verse.chapter}  ·  V. ${verse.verse}",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    letterSpacing = 1.5.sp,
+                                    fontWeight = FontWeight.Medium
+                                ),
+                                color = accent
+                            )
+                        }
+                    }
+
                     // Sanskrit verse card
                     Card(
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(16.dp),
+                        shape = RoundedCornerShape(24.dp),
                         colors = CardDefaults.cardColors(containerColor = sanskritBg),
                         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                     ) {
@@ -304,14 +368,16 @@ fun ResponseScreen(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.spacedBy(16.dp)
                         ) {
+                            // Sanskrit: larger, gold, italic
                             Text(
                                 text = verse.sanskrit,
                                 style = MaterialTheme.typography.titleMedium.copy(
                                     fontFamily = FontFamily.Serif,
-                                    lineHeight = 34.sp,
-                                    fontSize = 18.sp
+                                    fontStyle = FontStyle.Italic,
+                                    lineHeight = 36.sp,
+                                    fontSize = 22.sp
                                 ),
-                                color = gold,
+                                color = if (currentDarkMode) GitaColors.sanskritDark else GitaColors.sanskritLight,
                                 textAlign = TextAlign.Center
                             )
                             
@@ -335,6 +401,18 @@ fun ResponseScreen(
                 }
             }
             
+            // Lotus divider between Sanskrit and Translation
+            Box(
+                modifier = Modifier.fillMaxWidth(),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "✿",
+                    fontSize = 18.sp,
+                    color = gold.copy(alpha = 0.30f)
+                )
+            }
+
             // ═══════════════════════════════════════════════════════
             // Section 4: Translation
             // ═══════════════════════════════════════════════════════
@@ -344,7 +422,7 @@ fun ResponseScreen(
             ) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(24.dp),
                     colors = CardDefaults.cardColors(containerColor = bgCard),
                     elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                 ) {
@@ -354,7 +432,7 @@ fun ResponseScreen(
                             .border(
                                 width = 1.dp,
                                 color = divider,
-                                shape = RoundedCornerShape(16.dp)
+                                shape = RoundedCornerShape(24.dp)
                             )
                             .padding(24.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -367,17 +445,34 @@ fun ResponseScreen(
                             ),
                             color = textMuted
                         )
-                        
-                        Text(
-                            text = if (currentLanguage == "hi")
-                                getHindiTranslation(verse)
-                            else
-                                verse.translation,
-                            style = MaterialTheme.typography.bodyLarge.copy(
-                                lineHeight = 28.sp
-                            ),
-                            color = textPrimary
-                        )
+
+                        // Translation wrapped in decorative quote marks
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            Text(
+                                text = "❝",
+                                fontSize = 22.sp,
+                                fontFamily = FontFamily.Serif,
+                                color = textMuted.copy(alpha = 0.22f)
+                            )
+                            Text(
+                                text = if (currentLanguage == "hi")
+                                    getHindiTranslation(verse)
+                                else
+                                    verse.translation,
+                                style = MaterialTheme.typography.bodyLarge.copy(
+                                    lineHeight = 28.sp
+                                ),
+                                color = textPrimary,
+                                modifier = Modifier.padding(horizontal = 8.dp)
+                            )
+                            Text(
+                                text = "❞",
+                                fontSize = 22.sp,
+                                fontFamily = FontFamily.Serif,
+                                color = textMuted.copy(alpha = 0.22f),
+                                modifier = Modifier.align(Alignment.End)
+                            )
+                        }
                     }
                 }
             }
@@ -430,14 +525,14 @@ fun ResponseScreen(
                     story?.let { storyCard ->
                         Card(
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(16.dp),
+                            shape = RoundedCornerShape(24.dp),
                             colors = CardDefaults.cardColors(containerColor = bgCard),
                             elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                         ) {
                             Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .border(1.dp, divider, RoundedCornerShape(16.dp))
+                                    .border(1.dp, divider, RoundedCornerShape(24.dp))
                                     .padding(24.dp),
                                 verticalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
@@ -480,10 +575,14 @@ fun ResponseScreen(
                     Spacer(modifier = Modifier.height(8.dp))
                     
                     // Action buttons
+                    val actionGradient = Brush.linearGradient(
+                        if (currentDarkMode) GitaColors.buttonGradientDark else GitaColors.buttonGradientLight
+                    )
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
+                        // Another Verse — outlined
                         OutlinedButton(
                             onClick = onAnotherPerspective,
                             modifier = Modifier
@@ -491,9 +590,7 @@ fun ResponseScreen(
                                 .height(48.dp),
                             shape = RoundedCornerShape(14.dp),
                             border = ButtonDefaults.outlinedButtonBorder.copy(
-                                brush = Brush.linearGradient(
-                                    listOf(divider, divider)
-                                )
+                                brush = Brush.linearGradient(listOf(divider, divider))
                             ),
                             colors = ButtonDefaults.outlinedButtonColors(
                                 contentColor = textSecondary
@@ -511,7 +608,55 @@ fun ResponseScreen(
                                 fontWeight = FontWeight.Medium
                             )
                         }
-                        
+
+                        // Bookmark icon button
+                        OutlinedIconButton(
+                            onClick = onToggleBookmark,
+                            modifier = Modifier.size(48.dp),
+                            shape = RoundedCornerShape(14.dp),
+                            border = ButtonDefaults.outlinedButtonBorder.copy(
+                                brush = Brush.linearGradient(
+                                    if (isBookmarked) listOf(gold.copy(alpha = 0.5f), gold.copy(alpha = 0.5f))
+                                    else listOf(divider, divider)
+                                )
+                            ),
+                            colors = IconButtonDefaults.outlinedIconButtonColors(
+                                contentColor = if (isBookmarked) gold else textMuted
+                            )
+                        ) {
+                            Icon(
+                                if (isBookmarked) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder,
+                                contentDescription = if (isBookmarked) "Remove bookmark" else "Bookmark verse",
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+
+                        // Share — outlined icon button
+                        OutlinedIconButton(
+                            onClick = {
+                                ShareManager.shareVerseAsImage(
+                                    context = context,
+                                    verse = verse,
+                                    translation = verse.translation
+                                )
+                            },
+                            modifier = Modifier.size(48.dp),
+                            shape = RoundedCornerShape(14.dp),
+                            border = ButtonDefaults.outlinedButtonBorder.copy(
+                                brush = Brush.linearGradient(listOf(divider, divider))
+                            ),
+                            colors = IconButtonDefaults.outlinedIconButtonColors(
+                                contentColor = textMuted
+                            )
+                        ) {
+                            Icon(
+                                Icons.Outlined.Share,
+                                contentDescription = "Share verse",
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+
+                        // New Question — gradient filled
                         Button(
                             onClick = onBack,
                             modifier = Modifier
@@ -519,15 +664,24 @@ fun ResponseScreen(
                                 .height(48.dp),
                             shape = RoundedCornerShape(14.dp),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = accent,
+                                containerColor = Color.Transparent,
                                 contentColor = if (currentDarkMode) Color(0xFF1A1A1A) else Color.White
-                            )
+                            ),
+                            contentPadding = PaddingValues(0.dp)
                         ) {
-                            Text(
-                                if (currentLanguage == "hi") "नया प्रश्न" else "New Question",
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.SemiBold
-                            )
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(actionGradient),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    if (currentLanguage == "hi") "नया प्रश्न" else "New Question",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = if (currentDarkMode) Color(0xFF1A1A1A) else Color.White
+                                )
+                            }
                         }
                     }
                     

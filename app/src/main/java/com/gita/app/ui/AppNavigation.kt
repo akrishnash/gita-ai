@@ -3,8 +3,10 @@ package com.gita.app.ui
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.platform.LocalContext
 import com.gita.app.viewmodel.AppState
 import com.gita.app.viewmodel.MainViewModel
+import com.gita.app.viewmodel.UiState
 
 /**
  * State-based navigation router. Renders the appropriate screen
@@ -18,8 +20,24 @@ fun AppNavigation(viewModel: MainViewModel) {
     val selectedLanguage by viewModel.selectedLanguage.collectAsState()
     val isDarkMode by viewModel.isDarkMode.collectAsState()
     val historyEntries by viewModel.historyEntries.collectAsState()
-    
+    val uiState by viewModel.uiState.collectAsState()
+    val isLoggedIn by viewModel.isLoggedIn.collectAsState()
+    val isSigningIn by viewModel.isSigningIn.collectAsState()
+    val dailyVerseEnabled by viewModel.dailyVerseEnabled.collectAsState()
+    val dailyVerseHour by viewModel.dailyVerseHour.collectAsState()
+    val streak by viewModel.streak.collectAsState()
+    val bookmarks by viewModel.bookmarks.collectAsState()
+    val isCurrentVerseBookmarked by viewModel.isCurrentVerseBookmarked.collectAsState()
+    val context = LocalContext.current
+
     when (val state = appState) {
+        is AppState.Login -> {
+            LoginScreen(
+                onGoogleSignIn = { viewModel.signInWithGoogle(context) },
+                onGuestSignIn = { viewModel.continueAsGuest() },
+                isLoading = isSigningIn
+            )
+        }
         is AppState.Splash -> {
             SplashScreen()
         }
@@ -27,6 +45,7 @@ fun AppNavigation(viewModel: MainViewModel) {
             HomeScreen(
                 isDarkMode = isDarkMode,
                 language = selectedLanguage,
+                streak = streak,
                 onLanguageChange = { lang ->
                     viewModel.setLanguage(lang)
                 },
@@ -35,7 +54,10 @@ fun AppNavigation(viewModel: MainViewModel) {
                 },
                 onSubmit = { input ->
                     viewModel.submitProblem(input)
-                }
+                },
+                onNavigateHistory = { viewModel.navigateToHistory() },
+                onNavigateBookmarks = { viewModel.navigateToBookmarks() },
+                onNavigateSettings = { viewModel.navigateToSettings() },
             )
         }
         is AppState.Pause -> {
@@ -58,6 +80,14 @@ fun AppNavigation(viewModel: MainViewModel) {
                 story = state.story,
                 language = selectedLanguage,
                 isDarkMode = isDarkMode,
+                uiState = uiState,
+                isBookmarked = isCurrentVerseBookmarked,
+                onToggleBookmark = {
+                    val s = appState
+                    if (s is AppState.Response) {
+                        viewModel.toggleBookmark(s.verse, s.verse.translation, s.userInput)
+                    }
+                },
                 onLanguageChange = { lang ->
                     viewModel.setLanguage(lang)
                 },
@@ -73,9 +103,18 @@ fun AppNavigation(viewModel: MainViewModel) {
                 debugInfo = state.debugInfo
             )
         }
+        is AppState.Bookmarks -> {
+            BookmarksScreen(
+                bookmarks = bookmarks,
+                isDarkMode = isDarkMode,
+                onRemoveBookmark = { verseId -> viewModel.removeBookmark(verseId) },
+                onBack = { viewModel.navigateToHome() }
+            )
+        }
         is AppState.History -> {
             HistoryScreen(
                 historyEntries = historyEntries,
+                isDarkMode = isDarkMode,
                 onBack = {
                     viewModel.navigateToHome()
                 }
@@ -85,9 +124,16 @@ fun AppNavigation(viewModel: MainViewModel) {
             SettingsScreen(
                 aiApiKey = aiApiKey,
                 usageStats = usageStats,
+                isDarkMode = isDarkMode,
+                isLoggedIn = isLoggedIn,
+                enableDailyVerse = dailyVerseEnabled,
+                dailyVerseHour = dailyVerseHour,
                 onSaveApiKey = { key ->
                     viewModel.saveAiApiKey(key)
                 },
+                onSignOut = { viewModel.signOut() },
+                onDailyVerseToggle = { viewModel.setDailyVerseEnabled(it) },
+                onDailyVerseHourChange = { viewModel.setDailyVerseHour(it) },
                 onBack = {
                     viewModel.navigateToHome()
                 }
