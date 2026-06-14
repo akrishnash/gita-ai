@@ -7,19 +7,38 @@ plugins {
 }
 
 android {
-    namespace = "com.gita.app"
+    namespace = "com.gitaaikrishna.app"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.gita.app"
+        applicationId = "com.gitaaikrishna.app"
         minSdk = 24
-        targetSdk = 33
-        versionCode = 1
-        versionName = "1.0.0"
+        targetSdk = 35
+        versionCode = 3
+        versionName = "1.0.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
             useSupportLibrary = true
+        }
+    }
+
+    val releaseLocalProps = Properties()
+    val releaseLocalPropsFile = rootProject.file("local.properties")
+    if (releaseLocalPropsFile.exists()) releaseLocalPropsFile.inputStream().use { releaseLocalProps.load(it) }
+    val ksFile = releaseLocalProps.getProperty("RELEASE_KEYSTORE_PATH", "")
+    val ksPassword = releaseLocalProps.getProperty("RELEASE_KEYSTORE_PASSWORD", "")
+    val ksKeyAlias = releaseLocalProps.getProperty("RELEASE_KEY_ALIAS", "gita")
+    val ksKeyPassword = releaseLocalProps.getProperty("RELEASE_KEY_PASSWORD", "")
+
+    signingConfigs {
+        create("release") {
+            if (ksFile.isNotEmpty()) {
+                storeFile = file(ksFile)
+                storePassword = ksPassword
+                keyAlias = ksKeyAlias
+                keyPassword = ksKeyPassword
+            }
         }
     }
 
@@ -39,13 +58,31 @@ android {
                 ?: System.getenv("OPENAI_API_KEY")
                 ?: ""
             buildConfigField("String", "OPENAI_API_KEY", "\"${openAiKey.replace("\\", "\\\\").replace("\"", "\\\"")}\"")
+
+            val razorpayKey = localProps.getProperty("RAZORPAY_KEY_ID", "rzp_test_placeholder")
+            buildConfigField("String", "RAZORPAY_KEY_ID", "\"${razorpayKey.replace("\\", "\\\\").replace("\"", "\\\"")}\"")
         }
         release {
+            val localProps = Properties()
+            val localPropsFile = rootProject.file("local.properties")
+            if (localPropsFile.exists()) localPropsFile.inputStream().use { localProps.load(it) }
+
+            val geminiKey = localProps.getProperty("GEMINI_API_KEY", "")
+            buildConfigField("String", "GEMINI_API_KEY", "\"${geminiKey.replace("\\", "\\\\").replace("\"", "\\\"")}\"")
+
+            val googleWebClientId = localProps.getProperty("GOOGLE_WEB_CLIENT_ID", "")
+            buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"${googleWebClientId.replace("\\", "\\\\").replace("\"", "\\\"")}\"")
+
+            val openAiKey = (project.findProperty("OPENAI_API_KEY") as String?)
+                ?: System.getenv("OPENAI_API_KEY")
+                ?: ""
+            buildConfigField("String", "OPENAI_API_KEY", "\"${openAiKey.replace("\\", "\\\\").replace("\"", "\\\"")}\"")
+
+            val razorpayKey = localProps.getProperty("RAZORPAY_KEY_ID", "")
+            buildConfigField("String", "RAZORPAY_KEY_ID", "\"${razorpayKey.replace("\\", "\\\\").replace("\"", "\\\"")}\"")
+
+            signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = true
-            // Strip all secrets from release builds.
-            buildConfigField("String", "GEMINI_API_KEY", "\"\"")
-            buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"\"")
-            buildConfigField("String", "OPENAI_API_KEY", "\"\"")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -75,6 +112,12 @@ android {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
+    }
+}
+
+configurations.all {
+    resolutionStrategy {
+        force("com.google.android.recaptcha:recaptcha:18.4.0")
     }
 }
 
@@ -121,6 +164,9 @@ dependencies {
     
     // WorkManager for scheduled notifications
     implementation("androidx.work:work-runtime-ktx:2.9.0")
+
+    // Razorpay payment gateway
+    implementation("com.razorpay:checkout:1.6.33")
 
     // Testing
     testImplementation("junit:junit:4.13.2")

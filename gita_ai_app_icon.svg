@@ -1,0 +1,90 @@
+<svg viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Dark charcoal background -->
+    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0A0A0A;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#1A1A1A;stop-opacity:1" />
+    </linearGradient>
+    
+    <!-- Gold and saffron gradient for Om -->
+    <linearGradient id="omGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#FFD700;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#FFA500;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#FF8C00;stop-opacity:1" />
+    </linearGradient>
+    
+    <!-- Indigo purple glow -->
+    <radialGradient id="glowGradient" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" style="stop-color:#9370DB;stop-opacity:0.6" />
+      <stop offset="70%" style="stop-color:#6A5ACD;stop-opacity:0.3" />
+      <stop offset="100%" style="stop-color:#483D8B;stop-opacity:0" />
+    </radialGradient>
+    
+    <!-- Soft shadow filter -->
+    <filter id="softGlow">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="8" />
+    </filter>
+    
+    <filter id="deepGlow">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="12" />
+      <feComponentTransfer>
+        <feFuncA type="linear" slope="0.8"/>
+      </feComponentTransfer>
+    </filter>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="1024" height="1024" fill="url(#bgGradient)"/>
+  
+  <!-- Outer glow effect -->
+  <circle cx="512" cy="512" r="380" fill="url(#glowGradient)" opacity="0.8"/>
+  
+  <!-- Lotus flower petals (soft, minimalist) -->
+  <g opacity="0.15">
+    <!-- Outer petals -->
+    <ellipse cx="512" cy="280" rx="80" ry="140" fill="#FFD700" transform="rotate(0 512 512)"/>
+    <ellipse cx="512" cy="280" rx="80" ry="140" fill="#FFD700" transform="rotate(45 512 512)"/>
+    <ellipse cx="512" cy="280" rx="80" ry="140" fill="#FFD700" transform="rotate(90 512 512)"/>
+    <ellipse cx="512" cy="280" rx="80" ry="140" fill="#FFD700" transform="rotate(135 512 512)"/>
+    <ellipse cx="512" cy="280" rx="80" ry="140" fill="#FFD700" transform="rotate(180 512 512)"/>
+    <ellipse cx="512" cy="280" rx="80" ry="140" fill="#FFD700" transform="rotate(225 512 512)"/>
+    <ellipse cx="512" cy="280" rx="80" ry="140" fill="#FFD700" transform="rotate(270 512 512)"/>
+    <ellipse cx="512" cy="280" rx="80" ry="140" fill="#FFD700" transform="rotate(315 512 512)"/>
+  </g>
+  
+  <!-- Inner lotus petals (slightly more visible) -->
+  <g opacity="0.25">
+    <ellipse cx="512" cy="310" rx="60" ry="110" fill="#FFA500" transform="rotate(22.5 512 512)"/>
+    <ellipse cx="512" cy="310" rx="60" ry="110" fill="#FFA500" transform="rotate(67.5 512 512)"/>
+    <ellipse cx="512" cy="310" rx="60" ry="110" fill="#FFA500" transform="rotate(112.5 512 512)"/>
+    <ellipse cx="512" cy="310" rx="60" ry="110" fill="#FFA500" transform="rotate(157.5 512 512)"/>
+    <ellipse cx="512" cy="310" rx="60" ry="110" fill="#FFA500" transform="rotate(202.5 512 512)"/>
+    <ellipse cx="512" cy="310" rx="60" ry="110" fill="#FFA500" transform="rotate(247.5 512 512)"/>
+    <ellipse cx="512" cy="310" rx="60" ry="110" fill="#FFA500" transform="rotate(292.5 512 512)"/>
+    <ellipse cx="512" cy="310" rx="60" ry="110" fill="#FFA500" transform="rotate(337.5 512 512)"/>
+  </g>
+  
+  <!-- Inner lotus center circle -->
+  <circle cx="512" cy="512" r="160" fill="#FFD700" opacity="0.1"/>
+  
+  <!-- Deep indigo glow behind Om -->
+  <circle cx="512" cy="512" r="220" fill="none" stroke="#6A5ACD" stroke-width="40" opacity="0.2" filter="url(#deepGlow)"/>
+  
+  <!-- Om (ॐ) Symbol - rendered as artistic text -->
+  <text x="512" y="580" 
+        font-family="'Noto Sans Devanagari', 'Segoe UI Symbol', Arial Unicode MS, sans-serif" 
+        font-size="520" 
+        font-weight="700"
+        text-anchor="middle" 
+        dominant-baseline="middle"
+        fill="url(#omGradient)"
+        opacity="0.95"
+        letter-spacing="0">ॐ</text>
+  
+  <!-- Subtle highlight/shine on Om for depth -->
+  <ellipse cx="420" cy="480" rx="100" ry="120" fill="#FFFFFF" opacity="0.08" filter="url(#softGlow)"/>
+  
+  <!-- Additional subtle glow rings for premium feel -->
+  <circle cx="512" cy="512" r="280" fill="none" stroke="#9370DB" stroke-width="1" opacity="0.3"/>
+  <circle cx="512" cy="512" r="300" fill="none" stroke="#6A5ACD" stroke-width="1" opacity="0.15"/>
+</svg>

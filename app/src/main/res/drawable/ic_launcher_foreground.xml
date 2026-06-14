@@ -4,38 +4,84 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    
-    <!-- Center circle background -->
+
+    <!-- Outer saffron glow ring -->
     <path
-        android:fillColor="#6D5D4E"
-        android:pathData="M54,54m-36,0a36,36 0,1 1,72 0a36,36 0,1 1,-72 0"/>
-    
-    <!-- Inner glow circle -->
+        android:fillColor="#E8A030"
+        android:fillAlpha="0.18"
+        android:pathData="M54,54m-38,0a38,38 0,1 1,76 0a38,38 0,1 1,-76 0"/>
+
+    <!-- ॐ — drawn as clean filled paths, centred at (54,58), ~36px tall -->
+
+    <!-- Lower-left curve of the 3 (ओ body) -->
     <path
-        android:fillColor="#7D6D5E"
-        android:pathData="M54,54m-32,0a32,32 0,1 1,64 0a32,32 0,1 1,-64 0"/>
-    
-    <!-- Om Symbol ॐ - Stylized -->
-    <!-- Main body curve -->
+        android:fillColor="#F5C842"
+        android:pathData="
+          M38,58
+          C38,50 42,45 49,45
+          C53,45 56,47 56,51
+          C56,54 54,56 51,57
+          C54,57 57,59 57,63
+          C57,68 53,72 47,72
+          C41,72 37,68 37,63
+          C37,61 38,59 38,58 Z
+          M41,58
+          C41,59 40,61 40,63
+          C40,67 43,70 47,70
+          C51,70 54,67 54,63
+          C54,60 52,58 49,57
+          C52,56 53,54 53,51
+          C53,48 51,47 49,47
+          C44,47 41,51 41,58 Z"/>
+
+    <!-- Right curve (the ु / virama loop) -->
     <path
-        android:fillColor="#FFFFFF"
-        android:strokeWidth="0"
-        android:pathData="M36,56 C36,50 40,46 46,46 C50,46 52,48 52,52 C52,56 48,58 44,58 C40,58 38,56 38,54
-                         M52,52 C52,48 56,44 62,44 C68,44 72,50 72,58 C72,66 66,72 58,72 C54,72 52,70 52,66
-                         M44,66 C48,70 52,68 54,64"/>
-    
-    <!-- Top flourish -->
+        android:fillColor="#F5C842"
+        android:pathData="
+          M57,51
+          C57,47 60,44 65,44
+          C70,44 74,48 74,54
+          C74,62 68,68 60,70
+          L60,67
+          C66,65 71,60 71,54
+          C71,50 68,47 65,47
+          C62,47 60,49 60,51
+          C60,54 62,55 65,55
+          L65,58
+          C61,58 57,55 57,51 Z"/>
+
+    <!-- Horizontal tail line under the 3 -->
     <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M58,36 Q64,32 68,36 Q72,40 68,42 L64,40 Q66,38 64,36 Q62,34 58,38 Z"/>
-    
-    <!-- Chandrabindu (moon dot) -->
+        android:fillColor="#F5C842"
+        android:pathData="M38,73 L70,73 L70,75 L38,75 Z"/>
+
+    <!-- Curved tail below the line -->
     <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M66,30 m-4,0 a4,4 0,1 1,8 0 a4,4 0,1 1,-8 0"/>
-    
-    <!-- Small crescent above dot -->
+        android:fillColor="#F5C842"
+        android:pathData="
+          M52,75
+          C52,75 49,78 49,80
+          C49,82 51,83 54,83
+          C57,83 60,81 61,79
+          L63,80
+          C62,83 58,86 54,86
+          C49,86 46,83 46,80
+          C46,77 49,74 52,74 Z"/>
+
+    <!-- Chandrabindu arc (crescent) -->
     <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M62,24 Q66,20 70,24 L68,26 Q66,24 64,26 Z"/>
+        android:fillColor="#F5C842"
+        android:pathData="
+          M56,35
+          C56,35 60,31 66,33
+          C70,35 71,39 69,41
+          L67,40
+          C68,39 68,36 65,35
+          C62,33 58,36 58,36 Z"/>
+
+    <!-- Bindu (dot above crescent) -->
+    <path
+        android:fillColor="#F5C842"
+        android:pathData="M63,28 m-4,0 a4,4 0,1 1,8 0 a4,4 0,1 1,-8 0"/>
+
 </vector>
